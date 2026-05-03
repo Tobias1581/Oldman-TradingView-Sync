@@ -1,0 +1,3717 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oldman Tools</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;--border2:#21262d;
+  --text:#c9d1d9;--text-muted:#8b949e;--text-heading:#f0f6fc;
+  --green:#7ee787;--red:#ff7b72;--yellow:#d29922;--orange:#ffa657;--blue:#58a6ff;
+  --green-bg:#1a2f1a;--red-bg:#2f1a1a;--yellow-bg:#2a1f00;--blue-bg:#1a2a3f;
+  --green-border:#2ea043;--red-border:#da3633;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  background:var(--bg);color:var(--text);padding:1.5rem;line-height:1.5;font-size:14px;}
+.container{max-width:960px;margin:0 auto;}
+
+/* ── APP HEADER ── */
+.app-header{margin-bottom:2rem;}
+.app-title{font-size:1.75rem;font-weight:700;color:var(--text-heading);letter-spacing:-.5px;}
+.app-sub{color:var(--text-muted);font-size:.9rem;margin-top:.25rem;}
+
+/* ── TAB NAV ── */
+.tab-nav{display:flex;gap:.25rem;border-bottom:2px solid var(--border);margin-bottom:2rem;}
+.tab-btn{background:none;border:none;border-bottom:3px solid transparent;color:var(--text-muted);
+  cursor:pointer;font:inherit;font-size:.9375rem;font-weight:500;padding:.625rem 1.5rem .75rem;
+  margin-bottom:-2px;transition:color .15s,border-color .15s;border-radius:4px 4px 0 0;}
+.tab-btn:hover{color:var(--text);background:var(--surface2);}
+.tab-btn.active{color:var(--text-heading);border-bottom-color:var(--orange);background:var(--surface);}
+.tab-panel{display:none;}.tab-panel.active{display:block;}
+
+/* ── WIZARD STEP INDICATOR ── */
+.wiz-track{display:flex;align-items:center;margin-bottom:2.5rem;padding:0 .5rem;}
+.wiz-step{display:flex;flex-direction:column;align-items:center;gap:.375rem;flex-shrink:0;min-width:80px;}
+.wiz-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:.875rem;border:2px solid var(--border);color:var(--text-muted);
+  background:var(--surface);transition:all .25s;}
+.wiz-label{font-size:.7rem;color:var(--text-muted);text-align:center;white-space:nowrap;
+  font-weight:500;transition:color .25s;letter-spacing:.3px;}
+.wiz-step.active .wiz-num{border-color:var(--orange);color:var(--orange);background:rgba(255,166,87,.12);}
+.wiz-step.active .wiz-label{color:var(--orange);font-weight:600;}
+.wiz-step.done .wiz-num{border-color:var(--green-border);color:var(--bg);background:var(--green-border);}
+.wiz-step.done{cursor:pointer;}
+.wiz-step.done:hover .wiz-num{opacity:.75;transform:scale(1.08);transition:all .2s;}
+.wiz-step.done .wiz-label{color:var(--green);}
+.wiz-line{flex:1;height:2px;background:var(--border);margin:0 .25rem;margin-bottom:1.25rem;transition:background .25s;}
+.wiz-line.done{background:var(--green-border);}
+
+/* ── WIZARD PANELS ── */
+.wiz-panel{display:none;animation:fadeIn .2s ease;}
+.wiz-panel.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:1rem;}
+.card-header{background:var(--bg);border-bottom:1px solid var(--border);padding:.75rem 1.25rem;
+  display:flex;align-items:center;gap:.625rem;flex-wrap:wrap;}
+.card-title{font-weight:600;font-size:.9rem;color:var(--text-heading);flex:1;}
+
+/* ── UPLOAD ZONE ── */
+input[type="file"]{display:none;}
+.drop-zone{padding:2.5rem 1rem;text-align:center;cursor:pointer;transition:background .2s,border-color .2s;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.625rem;
+  border:2px dashed var(--border);border-radius:6px;color:var(--text-muted);}
+.drop-zone:hover,.drop-zone.dragging{background:var(--surface2);border-color:var(--blue);}
+.drop-zone-icon{font-size:2.5rem;}
+.drop-zone-title{font-size:1rem;font-weight:600;color:var(--text-heading);}
+.drop-zone-sub{font-size:.8125rem;color:var(--text-muted);}
+.drop-zone-ext{font-family:'SF Mono',Monaco,monospace;font-size:.75rem;background:var(--surface2);
+  padding:.2rem .625rem;border-radius:3px;color:var(--blue);}
+.file-loaded{padding:1rem 1.25rem;display:flex;align-items:center;gap:.75rem;}
+.file-loaded-name{font-family:'SF Mono',Monaco,monospace;font-size:.8125rem;font-weight:600;
+  color:var(--blue);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-loaded-meta{font-size:.75rem;color:var(--text-muted);margin-top:.125rem;}
+
+/* ── WIZARD NAV BUTTONS ── */
+.wiz-nav{display:flex;gap:.75rem;align-items:center;margin-top:1.75rem;padding-top:1.25rem;
+  border-top:1px solid var(--border);}
+.wiz-nav-spacer{flex:1;}
+.btn{padding:.5625rem 1.25rem;border:none;border-radius:6px;font-weight:600;cursor:pointer;
+  transition:all .2s;font-size:.875rem;font-family:inherit;}
+.btn-primary{background:#238636;color:#fff;}
+.btn-primary:hover:not(:disabled){background:var(--green-border);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.btn-secondary:hover:not(:disabled){background:var(--border);}
+.btn-orange{background:rgba(255,166,87,.15);color:var(--orange);border:1px solid rgba(255,166,87,.3);}
+.btn-orange:hover:not(:disabled){background:rgba(255,166,87,.25);}
+.btn-orange:disabled{opacity:.4;cursor:not-allowed;}
+.btn-neue-datei{background:rgba(88,166,255,.12);color:var(--blue);border:1px solid rgba(88,166,255,.35);font-weight:600;}
+.btn-neue-datei:hover:not(:disabled){background:rgba(88,166,255,.22);border-color:rgba(88,166,255,.6);}
+.btn-full{width:100%;display:block;padding:.75rem 1rem;font-size:.9375rem;}
+.btn-lg{padding:.75rem 1.75rem;font-size:1rem;}
+
+/* ── BADGES ── */
+.badge{display:inline-block;padding:.2rem .5rem;border-radius:3px;font-size:.7rem;
+  font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
+.badge-updated{background:var(--green-bg);color:var(--green);}
+.badge-same{background:var(--surface2);color:var(--text-muted);}
+.badge-missing{background:var(--red-bg);color:var(--red);}
+
+/* ── CHECKBOX ── */
+.option-row{display:flex;align-items:center;gap:.75rem;padding:.875rem 1.25rem;
+  cursor:pointer;transition:background .15s;}
+.option-row:hover{background:var(--bg);}
+.option-row input[type="checkbox"]{display:none;}
+.checkbox-box{width:16px;height:16px;border:2px solid var(--border);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:10px;
+  color:#fff;transition:all .15s;}
+.option-row.checked .checkbox-box{background:#238636;border-color:var(--green-border);}
+.option-label{font-size:.875rem;color:var(--text);font-weight:500;}
+.option-desc{font-size:.75rem;color:var(--text-muted);}
+
+/* ── MESSAGES ── */
+.msg{padding:.875rem 1.25rem;margin-bottom:1rem;border-radius:6px;font-weight:500;display:none;}
+.msg.error{background:var(--red-bg);border:1px solid var(--red-border);color:var(--red);display:block;}
+.msg.success{background:var(--green-bg);border:1px solid var(--green-border);color:var(--green);display:block;}
+.msg.info{background:var(--blue-bg);border:1px solid #1f6feb;color:var(--blue);display:block;}
+
+/* ── RESULT HEADER (migrator) ── */
+.result-header{background:var(--bg);border-bottom:1px solid var(--border);padding:.875rem 1.25rem;
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.result-stats{display:flex;gap:1.25rem;align-items:center;flex-wrap:wrap;}
+.result-stat{display:flex;align-items:center;gap:.375rem;font-size:.8125rem;color:var(--text-muted);}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* ── TABLES ── */
+.table-wrap{width:100%;overflow-x:auto;}
+.stat-table{width:100%;border-collapse:collapse;font-size:.8125rem;}
+.stat-table thead{background:var(--bg);}
+.stat-table th{padding:.625rem .875rem;color:var(--text-muted);font-weight:600;font-size:.75rem;
+  text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);
+  white-space:nowrap;text-align:right;}
+.stat-table th:first-child{text-align:left;}
+.stat-table td{padding:.625rem .875rem;border-bottom:1px solid var(--border2);
+  text-align:right;font-family:'SF Mono',Monaco,monospace;}
+.stat-table td:first-child{text-align:left;font-family:inherit;}
+.stat-table tr:last-child td{border-bottom:none;}
+.stat-table tbody tr:hover{background:var(--bg);}
+.stat-table tr.total-row td{font-weight:700;border-top:1px solid var(--border);background:var(--bg);}
+.stat-table tr.manual-row td{color:var(--text-muted);font-style:italic;}
+.c-green{color:var(--green);}
+.c-red{color:var(--red);}
+.c-yellow{color:var(--orange);}
+.c-blue{color:var(--blue);}
+.c-muted{color:var(--text-muted);}
+.c-mono{font-family:'SF Mono',Monaco,monospace;}
+.td-name{font-family:'SF Mono',Monaco,monospace;font-size:.8125rem;color:var(--text-muted);}
+.td-old{font-family:'SF Mono',Monaco,monospace;font-size:.8125rem;color:#6e7681;}
+.td-new-updated{font-family:'SF Mono',Monaco,monospace;font-size:.8125rem;color:var(--green);font-weight:600;}
+.td-new-same{font-family:'SF Mono',Monaco,monospace;font-size:.8125rem;color:#6e7681;}
+
+/* ── AUSWERTUNG OUTPUT ── */
+.output-section{margin-bottom:2rem;}
+.section-title{font-size:.9375rem;font-weight:600;color:var(--text-heading);margin-bottom:.75rem;
+  padding-bottom:.5rem;border-bottom:1px solid var(--border);}
+.drawdown-box{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;margin-bottom:1rem;}
+.dd-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:1rem;}
+.dd-label{font-size:.75rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.25rem;}
+.dd-value{font-size:1.25rem;font-weight:700;font-family:'SF Mono',Monaco,monospace;}
+.dd-sub{font-size:.75rem;color:var(--text-muted);margin-top:.25rem;}
+.legend-box{background:var(--surface2);border-radius:4px;padding:.625rem 1rem;font-size:.75rem;
+  color:var(--text-muted);margin-bottom:1rem;line-height:1.7;}
+.pnl-cols{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+@media(max-width:640px){.pnl-cols{grid-template-columns:1fr;}}
+
+/* ── TV SCRIPT WIZARD ── */
+.browser-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:.5rem 0;}
+@media(max-width:540px){.browser-grid{grid-template-columns:1fr;}}
+.browser-tile{background:var(--surface2);border:2px solid var(--border);border-radius:8px;
+  padding:1.25rem .875rem;text-align:center;cursor:pointer;transition:all .2s;user-select:none;}
+.browser-tile:hover{border-color:var(--blue);background:#1a2a3f;}
+.browser-tile.selected{border-color:var(--orange);background:rgba(255,166,87,.1);}
+.browser-tile-icon{font-size:2rem;margin-bottom:.5rem;}
+.browser-tile-name{font-weight:600;color:var(--text-heading);font-size:.9375rem;}
+.browser-tile-sub{font-size:.75rem;color:var(--text-muted);margin-top:.2rem;}
+.install-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:1.25rem;}
+.install-steps{list-style:none;counter-reset:ist;margin:1rem 0;}
+.install-steps li{counter-increment:ist;display:flex;gap:.875rem;padding:.625rem 0;
+  border-bottom:1px solid var(--border2);}
+.install-steps li:last-child{border-bottom:none;}
+.install-steps li::before{content:counter(ist);display:flex;align-items:center;justify-content:center;
+  width:22px;height:22px;min-width:22px;background:var(--surface);border:1px solid var(--border);
+  border-radius:50%;font-weight:700;font-size:.75rem;color:var(--orange);}
+.install-steps li span{padding-top:.125rem;font-size:.875rem;line-height:1.5;}
+.confirm-row{display:flex;align-items:center;gap:.875rem;padding:1rem 1.25rem;cursor:pointer;
+  background:var(--surface2);border:2px solid var(--border);border-radius:8px;margin-top:1.25rem;
+  transition:border-color .15s,background .15s;}
+.confirm-row:hover{border-color:var(--orange);background:rgba(255,166,87,.06);}
+.confirm-row.checked{border-color:var(--green-border);background:rgba(46,160,67,.09);}
+.confirm-row:hover .checkbox-box{border-color:var(--orange);}
+.confirm-row .checkbox-box{width:22px;height:22px;border-radius:5px;font-size:.875rem;}
+.confirm-row.checked .checkbox-box{background:var(--green-border);border-color:var(--green-border);}
+.script-hero{text-align:center;padding:1.5rem 1rem 1rem;}
+.script-hero-icon{font-size:3rem;margin-bottom:.75rem;}
+.script-hero-name{font-size:1.25rem;font-weight:700;color:var(--text-heading);margin-bottom:.25rem;}
+.script-hero-ver{display:inline-block;background:var(--blue-bg);color:var(--blue);
+  border:1px solid #1f6feb;border-radius:12px;padding:.2rem .75rem;font-size:.8rem;
+  font-weight:600;margin-bottom:.75rem;}
+.autoupdate-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+  padding:.875rem 1rem;font-size:.8125rem;color:var(--text-muted);margin-top:1rem;}
+.done-screen{text-align:center;padding:2.5rem 1rem;}
+.done-icon{font-size:3.5rem;margin-bottom:1rem;}
+.done-title{font-size:1.5rem;font-weight:700;color:var(--green);margin-bottom:.5rem;}
+.done-sub{color:var(--text-muted);margin-bottom:1.5rem;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px){
+  body{padding:1rem;}
+  .app-title{font-size:1.375rem;}
+  .tab-btn{padding:.5rem .875rem;}
+  .wiz-label{display:none;}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header class="app-header">
+  <div class="app-title">🛠️ Oldman Tools</div>
+  <div class="app-sub">cBot Konverter &nbsp;·&nbsp; Log-Analyse &nbsp;·&nbsp; TradingView Erweiterung</div>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="migrator">⚡ cBot Konverter</button>
+  <button class="tab-btn" data-tab="auswertung">📊 Log-Analyse</button>
+  <button class="tab-btn" data-tab="tvscript">📺 TradingView Erweiterung</button>
+</nav>
+
+<!-- ════════════════════════════════════════
+     TAB 1 — MIGRATOR (2 Schritte)
+════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-migrator">
+  <div id="migMsg" class="msg"></div>
+
+  <!-- Step indicator -->
+  <div class="wiz-track" id="mig-track">
+    <div class="wiz-step active" id="mig-s1" onclick="migClickStep(1)">
+      <div class="wiz-num">1</div>
+      <div class="wiz-label">Datei laden</div>
+    </div>
+    <div class="wiz-line" id="mig-line1"></div>
+    <div class="wiz-step" id="mig-s2" onclick="migClickStep(2)">
+      <div class="wiz-num">2</div>
+      <div class="wiz-label">Ergebnis</div>
+    </div>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="wiz-panel active" id="mig-p1">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📄 .cbotset Datei hochladen</span>
+        <code style="font-size:.75rem;background:var(--surface2);padding:.15rem .4rem;border-radius:3px;color:var(--blue);">.cbotset</code>
+      </div>
+      <div style="padding:.75rem 1.25rem .25rem;font-size:.8125rem;color:var(--text-muted);line-height:1.6;">
+        Wandelt eine <code style="font-size:.8125rem;color:var(--blue);">.cbotset</code>-Datei in eine importfertige
+        <code style="font-size:.8125rem;color:var(--blue);">.optset</code>-Datei um — für den direkten Import in cTrader.
+      </div>
+      <input type="file" id="cbotFile" accept=".cbotset,.json">
+      <div id="cbotDrop" class="drop-zone" onclick="document.getElementById('cbotFile').click()">
+        <div class="drop-zone-icon">📂</div>
+        <div class="drop-zone-title">Datei hierher ziehen</div>
+        <div class="drop-zone-sub">oder klicken zum Auswählen</div>
+        <div class="drop-zone-ext">.cbotset</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">⚙️ Optionen</span></div>
+      <label class="option-row" id="opt-changed">
+        <input type="checkbox">
+        <div class="checkbox-box"></div>
+        <div>
+          <div class="option-label">Nur geänderte Parameter anzeigen</div>
+          <div class="option-desc">Unveränderte Werte aus der Tabelle ausblenden</div>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Step 2: Result -->
+  <div class="wiz-panel" id="mig-p2">
+    <div class="card" id="resultCard">
+      <div class="result-header">
+        <div class="result-stats">
+          <div class="result-stat"><div class="dot" style="background:var(--green)"></div><strong id="cntUpdated">0</strong>&nbsp;aktualisiert</div>
+          <div class="result-stat"><div class="dot" style="background:var(--text-muted)"></div><strong id="cntSame">0</strong>&nbsp;unverändert</div>
+          <div class="result-stat"><div class="dot" style="background:var(--red)"></div><strong id="cntMissing">0</strong>&nbsp;nicht gefunden</div>
+        </div>
+        <div style="display:flex;gap:.5rem;flex-shrink:0;">
+          <button class="btn btn-neue-datei" onclick="migGoTo(1)">← Neue Datei</button>
+          <button class="btn btn-primary" id="downloadBtn">⬇ Download .optset</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="stat-table">
+          <thead><tr>
+            <th style="text-align:left;">Parameter</th>
+            <th style="text-align:left;">Bisheriger Wert</th>
+            <th style="text-align:left;">Neuer Wert</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody id="diffBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     TAB 2 — AUSWERTUNG (2 Schritte)
+════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-auswertung">
+  <div id="ausMsg" class="msg"></div>
+
+  <!-- Step indicator -->
+  <div class="wiz-track" id="aus-track">
+    <div class="wiz-step active" id="aus-s1" onclick="ausClickStep(1)">
+      <div class="wiz-num">1</div>
+      <div class="wiz-label">Log laden</div>
+    </div>
+    <div class="wiz-line" id="aus-line1"></div>
+    <div class="wiz-step" id="aus-s2" onclick="ausClickStep(2)">
+      <div class="wiz-num">2</div>
+      <div class="wiz-label">Auswertung</div>
+    </div>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="wiz-panel active" id="aus-p1">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">📋 cTrader Log-Datei hochladen</span>
+        <code style="font-size:.75rem;background:var(--surface2);padding:.15rem .4rem;border-radius:3px;color:var(--blue);">.txt</code>
+      </div>
+      <div style="padding:.75rem 1.25rem .25rem;font-size:.8125rem;color:var(--text-muted);line-height:1.6;">
+        Wertet eine cTrader-Logdatei aus und zeigt Statistiken zu Trades, P&amp;L und Drawdown.
+      </div>
+      <input type="file" id="logFile" accept=".txt,.log">
+      <div id="logDrop" class="drop-zone" onclick="document.getElementById('logFile').click()">
+        <div class="drop-zone-icon">📊</div>
+        <div class="drop-zone-title">Log-Datei hierher ziehen</div>
+        <div class="drop-zone-sub">oder klicken zum Auswählen</div>
+        <div class="drop-zone-ext">.txt</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Output -->
+  <div class="wiz-panel" id="aus-p2">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+      <button class="btn btn-neue-datei" onclick="ausGoTo(1)">← Neue Datei</button>
+    </div>
+    <div id="ausOutput"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     TAB 3 — TV SCRIPT (4 Schritte)
+════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-tvscript">
+
+  <!-- Step indicator -->
+  <div class="wiz-track" id="tv-track">
+    <div class="wiz-step active" id="tv-s1" onclick="tvClickStep(1)">
+      <div class="wiz-num">1</div>
+      <div class="wiz-label">Browser</div>
+    </div>
+    <div class="wiz-line" id="tv-line1"></div>
+    <div class="wiz-step" id="tv-s2" onclick="tvClickStep(2)">
+      <div class="wiz-num">2</div>
+      <div class="wiz-label">Tampermonkey</div>
+    </div>
+    <div class="wiz-line" id="tv-line2"></div>
+    <div class="wiz-step" id="tv-s3" onclick="tvClickStep(3)">
+      <div class="wiz-num">3</div>
+      <div class="wiz-label">Skript</div>
+    </div>
+    <div class="wiz-line" id="tv-line3"></div>
+    <div class="wiz-step" id="tv-s4" onclick="tvClickStep(4)">
+      <div class="wiz-num">4</div>
+      <div class="wiz-label">Fertig</div>
+    </div>
+  </div>
+
+  <!-- TV Step 1: Browser wählen -->
+  <div class="wiz-panel active" id="tv-p1">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Welchen Browser verwendest du?</span></div>
+      <div style="padding:.75rem 1.25rem .25rem;font-size:.8125rem;color:var(--text-muted);line-height:1.6;">
+        Installiert ein Browser-Skript, das zusätzliche Buttons im TradingView Strategietester und Alarmindikator hinzufügt.
+      </div>
+      <div style="padding:1.25rem;">
+        <div class="browser-grid">
+          <div class="browser-tile" data-browser="chrome"
+               data-store="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"
+               data-store-name="Chrome Web Store"
+               onclick="tvSelectBrowser(this)">
+            <div class="browser-tile-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+                <path d="M24 24L24 2A22 22 0 0 1 43.05 35Z" fill="#EA4335"/>
+                <path d="M24 24L43.05 35A22 22 0 0 1 4.95 35Z" fill="#FBBC05"/>
+                <path d="M24 24L4.95 35A22 22 0 0 1 24 2Z" fill="#34A853"/>
+                <circle cx="24" cy="24" r="11" fill="white"/>
+                <circle cx="24" cy="24" r="9" fill="#4285F4"/>
+              </svg>
+            </div>
+            <div class="browser-tile-name">Chrome</div>
+            <div class="browser-tile-sub">Google Chrome</div>
+          </div>
+          <div class="browser-tile" data-browser="firefox"
+               data-store="https://addons.mozilla.org/de/firefox/addon/tampermonkey/"
+               data-store-name="Firefox Add-ons"
+               onclick="tvSelectBrowser(this)">
+            <div class="browser-tile-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+                <defs>
+                  <radialGradient id="ffFire" cx="35%" cy="30%" r="70%">
+                    <stop offset="0%" stop-color="#FFEA00"/>
+                    <stop offset="30%" stop-color="#FF7700"/>
+                    <stop offset="65%" stop-color="#E3000B"/>
+                    <stop offset="100%" stop-color="#9B0025"/>
+                  </radialGradient>
+                  <radialGradient id="ffGlobe" cx="40%" cy="38%" r="60%">
+                    <stop offset="0%" stop-color="#4DBBFF"/>
+                    <stop offset="50%" stop-color="#0060DF"/>
+                    <stop offset="100%" stop-color="#002D92"/>
+                  </radialGradient>
+                </defs>
+                <!-- Outer flame ring -->
+                <circle cx="24" cy="24" r="22" fill="url(#ffFire)"/>
+                <!-- Blue globe -->
+                <circle cx="24" cy="27" r="15" fill="url(#ffGlobe)"/>
+                <!-- Globe grid lines -->
+                <ellipse cx="24" cy="27" rx="6" ry="15" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+                <line x1="9" y1="27" x2="39" y2="27" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+                <line x1="10" y1="20" x2="38" y2="20" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                <line x1="10" y1="34" x2="38" y2="34" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                <!-- Fox cap: orange overlapping top of globe -->
+                <path d="M14,17 C17,11 22,8 27,9 C32,10 37,14 39,19 C35,15 30,13 25,14 C20,14 16,17 14,22 C13,20 13,18 14,17Z" fill="#FF9400"/>
+                <!-- Highlight -->
+                <circle cx="19" cy="22" r="3.5" fill="rgba(255,255,255,0.1)"/>
+              </svg>
+            </div>
+            <div class="browser-tile-name">Firefox</div>
+            <div class="browser-tile-sub">Mozilla Firefox</div>
+          </div>
+          <div class="browser-tile" data-browser="edge"
+               data-store="https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd"
+               data-store-name="Edge Add-ons"
+               onclick="tvSelectBrowser(this)">
+            <div class="browser-tile-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+                <defs>
+                  <linearGradient id="egBg" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#29C4A9"/>
+                    <stop offset="100%" stop-color="#0067CC"/>
+                  </linearGradient>
+                  <linearGradient id="egBar" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stop-color="#29C4A9"/>
+                    <stop offset="100%" stop-color="#60D0F0"/>
+                  </linearGradient>
+                </defs>
+                <!-- Background circle -->
+                <circle cx="24" cy="24" r="22" fill="url(#egBg)"/>
+                <!-- "e" shape: thick open arc (C-shape) -->
+                <path d="M38,17 C35,10 29,6 22,6 C12.5,6 5,13.5 5,24 C5,34.5 12.5,42 22,42 C29,42 35,38 38,31"
+                      fill="none" stroke="white" stroke-width="6" stroke-linecap="round"/>
+                <!-- Horizontal bar of the e -->
+                <line x1="5" y1="24" x2="37" y2="24" stroke="url(#egBar)" stroke-width="6" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="browser-tile-name">Edge</div>
+            <div class="browser-tile-sub">Microsoft Edge</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="wiz-nav">
+      <div class="wiz-nav-spacer"></div>
+      <button class="btn btn-orange btn-lg" id="tv-next1" disabled onclick="tvGoTo(2)">
+        Weiter →
+      </button>
+    </div>
+  </div>
+
+  <!-- TV Step 2: Tampermonkey installieren -->
+  <div class="wiz-panel" id="tv-p2">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🔌 Tampermonkey installieren</span>
+        <span id="tv-store-badge" style="font-size:.75rem;color:var(--text-muted);"></span>
+      </div>
+      <div style="padding:1.25rem;">
+        <div class="install-box">
+          <ol class="install-steps">
+            <li><span>Klicke auf den Button unten — der <strong id="tv-store-name">Store</strong> öffnet sich.</span></li>
+            <li><span>Suche auf der Store-Seite nach <strong>„Tampermonkey"</strong> und klicke auf <strong>„Hinzufügen"</strong>.</span></li>
+            <li><span>Bestätige die Berechtigungen im Browser-Dialog.</span></li>
+          </ol>
+          <a id="tv-store-link" href="#" target="_blank" rel="noopener"
+             class="btn btn-primary btn-full"
+             style="text-align:center;text-decoration:none;display:block;"
+             onclick="tvMarkInstallClicked()">
+            🔗 Tampermonkey im <span class="tv-sl-name">Store</span> öffnen ↗
+          </a>
+        </div>
+
+        <div class="confirm-row" id="tv-confirm-row" onclick="tvToggleConfirm()">
+          <div class="checkbox-box" id="tv-confirm-box"></div>
+          <span style="font-size:.875rem;color:var(--text);">Tampermonkey ist installiert ✓</span>
+        </div>
+      </div>
+    </div>
+    <div class="wiz-nav">
+      <button class="btn btn-secondary" onclick="tvGoTo(1)">← Zurück</button>
+      <div class="wiz-nav-spacer"></div>
+      <button class="btn btn-orange btn-lg" id="tv-next2" disabled onclick="tvGoTo(3)">
+        Weiter →
+      </button>
+    </div>
+  </div>
+
+  <!-- TV Step 3: Script herunterladen -->
+  <div class="wiz-panel" id="tv-p3">
+    <div class="card">
+      <div class="card-header"><span class="card-title">📥 Skript installieren</span></div>
+      <div class="script-hero">
+        <div class="script-hero-icon">📺</div>
+        <div class="script-hero-name">Oldman TradingView Sync &amp; Export</div>
+        <div class="script-hero-ver">v3.1</div>
+        <p style="color:var(--text-muted);font-size:.875rem;margin-bottom:1.25rem;">
+          Alarm-Synchronisation &amp; cTrader Export/Import direkt im Browser
+        </p>
+        <button class="btn btn-primary btn-lg" onclick="downloadTVScript()">
+          ⬇ Skript herunterladen
+        </button>
+        <div class="autoupdate-box">
+          🔄 <strong style="color:var(--text);">Auto-Update aktiv</strong> — Tampermonkey prüft beim Start auf neue Versionen und aktualisiert das Skript automatisch.
+        </div>
+      </div>
+      <div style="padding:0 1.25rem 1.25rem;">
+        <div style="font-size:.8125rem;color:var(--text-muted);line-height:1.7;">
+          Nach dem Download öffnet Tampermonkey automatisch den Installations-Dialog.
+          Klicke dort auf <strong style="color:var(--text);">„Installieren"</strong>.
+        </div>
+      </div>
+    </div>
+    <div class="wiz-nav">
+      <button class="btn btn-secondary" onclick="tvGoTo(2)">← Zurück</button>
+      <div class="wiz-nav-spacer"></div>
+      <button class="btn btn-orange btn-lg" onclick="tvGoTo(4)">
+        Skript installiert →
+      </button>
+    </div>
+  </div>
+
+  <!-- TV Step 4: Fertig -->
+  <div class="wiz-panel" id="tv-p4">
+    <div class="card">
+      <div class="done-screen">
+        <div class="done-icon">🎉</div>
+        <div class="done-title">Alles fertig!</div>
+        <div class="done-sub">
+          Bitte starte deinen Browser neu, damit das Skript aktiviert wird.<br><br>
+          Danach öffne TradingView — die Oldman-Buttons erscheinen dann im
+          <strong style="color:var(--text);">Einstellungsmenü</strong>
+          des Strategietesters bzw. Alarmindikators.
+        </div>
+        <button class="btn btn-secondary" onclick="tvGoTo(1)">
+          ↩ Von vorne beginnen
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /tab-tvscript -->
+</div><!-- /container -->
+
+<script>
+
+'use strict';
+
+// ═══ TAB SWITCHING ═══════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ═══ CHECKBOX HELPER ═════════════════════════════════
+document.querySelectorAll('.option-row').forEach(row => {
+  row.addEventListener('click', () => {
+    const cb = row.querySelector('input[type="checkbox"]');
+    const box = row.querySelector('.checkbox-box');
+    cb.checked = !cb.checked;
+    row.classList.toggle('checked', cb.checked);
+    box.textContent = cb.checked ? '✓' : '';
+    onOptionChange();
+  });
+});
+function isChecked(id) { return document.getElementById(id).classList.contains('checked'); }
+function onOptionChange() { if (lastMigResult) renderDiff(lastMigResult, isChecked('opt-changed')); }
+
+// ═══ MIGRATOR WIZARD STEPS ════════════════════════════
+function migGoTo(step) {
+  [1,2].forEach(n => {
+    document.getElementById('mig-p'+n).classList.toggle('active', n===step);
+    const s = document.getElementById('mig-s'+n);
+    s.classList.remove('active','done');
+    if (n < step) s.classList.add('done');
+    else if (n === step) s.classList.add('active');
+  });
+  document.getElementById('mig-line1').classList.toggle('done', step > 1);
+  if (step === 1) { clearCbot(); }
+}
+
+// ═══ AUSWERTUNG WIZARD STEPS ══════════════════════════
+function ausGoTo(step) {
+  [1,2].forEach(n => {
+    document.getElementById('aus-p'+n).classList.toggle('active', n===step);
+    const s = document.getElementById('aus-s'+n);
+    s.classList.remove('active','done');
+    if (n < step) s.classList.add('done');
+    else if (n === step) s.classList.add('active');
+  });
+  document.getElementById('aus-line1').classList.toggle('done', step > 1);
+  if (step === 1) { clearLog(); }
+}
+
+// ═══ TV SCRIPT WIZARD STEPS ═══════════════════════════
+let tvSelectedBrowser = null;
+let tvConfirmed = false;
+
+function tvGoTo(step) {
+  [1,2,3,4].forEach(n => {
+    document.getElementById('tv-p'+n).classList.toggle('active', n===step);
+    const s = document.getElementById('tv-s'+n);
+    s.classList.remove('active','done');
+    if (n < step) s.classList.add('done');
+    else if (n === step) s.classList.add('active');
+  });
+  [1,2,3].forEach(n => {
+    document.getElementById('tv-line'+n).classList.toggle('done', step > n);
+  });
+}
+
+function tvSelectBrowser(tile) {
+  document.querySelectorAll('.browser-tile').forEach(t => t.classList.remove('selected'));
+  tile.classList.add('selected');
+  tvSelectedBrowser = tile.dataset.browser;
+  document.getElementById('tv-next1').disabled = false;
+  // Update step 2 store details
+  document.getElementById('tv-store-name').textContent = tile.dataset.storeName;
+  document.getElementById('tv-store-badge').textContent = tile.dataset.storeName;
+  document.getElementById('tv-store-link').href = tile.dataset.store;
+  document.querySelectorAll('.tv-sl-name').forEach(el => el.textContent = tile.dataset.storeName);
+}
+
+function tvMarkInstallClicked() {
+  // Just open link — confirmation via checkbox
+}
+
+function tvToggleConfirm() {
+  tvConfirmed = !tvConfirmed;
+  const box = document.getElementById('tv-confirm-box');
+  const btn = document.getElementById('tv-next2');
+  document.getElementById('tv-confirm-row').classList.toggle('checked', tvConfirmed);
+  box.textContent = tvConfirmed ? '✓' : '';
+  btn.disabled = !tvConfirmed;
+}
+
+// ═══ STEP INDICATOR CLICK-BACK ════════════════════════
+function migClickStep(n) {
+  const el = document.getElementById('mig-s'+n);
+  if (el.classList.contains('done') || el.classList.contains('active')) migGoTo(n);
+}
+function ausClickStep(n) {
+  const el = document.getElementById('aus-s'+n);
+  if (el.classList.contains('done') || el.classList.contains('active')) ausGoTo(n);
+}
+function tvClickStep(n) {
+  const el = document.getElementById('tv-s'+n);
+  if (el.classList.contains('done') || el.classList.contains('active')) tvGoTo(n);
+}
+
+
+const OPTSET_TEMPLATE = {
+  "parameters": [
+    {
+      "name": "QuickStartWithoutAlert",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "ResetDailyGuardToday",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "LicenseKey",
+      "value": "",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    },
+    {
+      "name": "InstanceTag",
+      "value": "",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    },
+    {
+      "name": "AllowedAccountIdStr",
+      "value": "0",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    },
+    {
+      "name": "SignalMode",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "DryRunMode",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableBacktestLogs",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "OrderSelection",
+      "value": "1",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "1",
+        "stop": "1",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Market",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "FTMOAccountSize",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "RiskBy",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "RiskMoney",
+      "value": "25.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "25.0",
+        "stop": "25.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "RiskPercent",
+      "value": "0.5",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.5",
+        "stop": "0.5",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MaxMarginUsagePercent",
+      "value": "40.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "40.0",
+        "stop": "40.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "GuardMode",
+      "value": "1",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "1",
+        "stop": "1",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "PendingGuardTolerancePips",
+      "value": "1.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1.0",
+        "stop": "1.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "DailyGuardEnabled",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MaxDailyDrawdownPercent",
+      "value": "4.75",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "4.75",
+        "stop": "4.75",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MaxSpreadPips",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "StrategyLong",
+      "value": "1",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "1",
+        "stop": "1",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule1Long",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule2Long",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule3Long",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule4MA200Long",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule4MA50Long",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Rule4MABufferLong",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MaxShortWickPercentLong",
+      "value": "15",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "15",
+        "stop": "15",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "StrategyShort",
+      "value": "1",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "1",
+        "stop": "1",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule1Short",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule2Short",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule3Short",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule4MA200Short",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EnableRule4MA50Short",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Rule4MABufferShort",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MaxShortWickPercentShort",
+      "value": "15",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "15",
+        "stop": "15",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TradeDirection",
+      "value": "2",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "2",
+        "stop": "2",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "CRVLong",
+      "value": "1.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1.0",
+        "stop": "1.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "CRVShort",
+      "value": "1.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1.0",
+        "stop": "1.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "CrvCalculation",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EntryOffsetLong",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EntryOffsetShort",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "SLOffsetLong",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "SLOffsetShort",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "SLMode",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "AtrPeriod",
+      "value": "14",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "14",
+        "stop": "14",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "AtrMultiplier",
+      "value": "1.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1.0",
+        "stop": "1.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "SLHighLowMode",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "SLUseBodyOpenLong",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "SLUseBodyOpenShort",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseCandleSplitLong",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Threshold1Long",
+      "value": "1000.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1000.0",
+        "stop": "1000.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Threshold2Long",
+      "value": "2000.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "2000.0",
+        "stop": "2000.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Threshold3Long",
+      "value": "3000.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "3000.0",
+        "stop": "3000.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "FactorLowLong",
+      "value": "0.66",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.66",
+        "stop": "0.66",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "FactorMidLong",
+      "value": "0.5",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.5",
+        "stop": "0.5",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "FactorHighLong",
+      "value": "0.4",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.4",
+        "stop": "0.4",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseCandleSplitShort",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Threshold1Short",
+      "value": "1000.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1000.0",
+        "stop": "1000.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Threshold2Short",
+      "value": "2000.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "2000.0",
+        "stop": "2000.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Threshold3Short",
+      "value": "3000.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "3000.0",
+        "stop": "3000.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "FactorLowShort",
+      "value": "0.66",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.66",
+        "stop": "0.66",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "FactorMidShort",
+      "value": "0.5",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.5",
+        "stop": "0.5",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "FactorHighShort",
+      "value": "0.4",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.4",
+        "stop": "0.4",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TrailingEnabledLong",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step1TriggerRLong",
+      "value": "1.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1.0",
+        "stop": "1.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step1SLRLong",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step2TriggerRLong",
+      "value": "2.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "2.0",
+        "stop": "2.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step2SLRLong",
+      "value": "1.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1.0",
+        "stop": "1.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step3TriggerRLong",
+      "value": "3.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "3.0",
+        "stop": "3.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step3SLRLong",
+      "value": "2.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "2.0",
+        "stop": "2.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step4TriggerRLong",
+      "value": "4.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "4.0",
+        "stop": "4.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step4SLRLong",
+      "value": "3.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "3.0",
+        "stop": "3.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step5TriggerRLong",
+      "value": "5.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "5.0",
+        "stop": "5.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step5SLRLong",
+      "value": "4.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "4.0",
+        "stop": "4.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step6TriggerRLong",
+      "value": "6.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "6.0",
+        "stop": "6.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step6SLRLong",
+      "value": "5.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "5.0",
+        "stop": "5.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TrailingEnabledShort",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step1TriggerRShort",
+      "value": "1.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1.0",
+        "stop": "1.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step1SLRShort",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step2TriggerRShort",
+      "value": "2.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "2.0",
+        "stop": "2.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step2SLRShort",
+      "value": "1.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "1.0",
+        "stop": "1.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step3TriggerRShort",
+      "value": "3.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "3.0",
+        "stop": "3.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step3SLRShort",
+      "value": "2.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "2.0",
+        "stop": "2.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step4TriggerRShort",
+      "value": "4.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "4.0",
+        "stop": "4.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step4SLRShort",
+      "value": "3.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "3.0",
+        "stop": "3.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step5TriggerRShort",
+      "value": "5.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "5.0",
+        "stop": "5.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step5SLRShort",
+      "value": "4.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "4.0",
+        "stop": "4.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step6TriggerRShort",
+      "value": "6.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "6.0",
+        "stop": "6.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "Step6SLRShort",
+      "value": "5.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "5.0",
+        "stop": "5.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "ZeitzonenHinweis",
+      "value": "automatische Sommer-/Winterzeit",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    },
+    {
+      "name": "WeekendCloseEnabled",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "WeekendCloseTimeStr",
+      "value": "21:49:00",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "EveningCloseEnabled",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "EveningCloseTimeStr",
+      "value": "21:49:00",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "HolidayCloseEnabled",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "HolidayCloseRegion",
+      "value": "1",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "1",
+        "stop": "1",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "HolidayCloseTimeStr",
+      "value": "18:59:00",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "SessionFilterEnabled",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "SessionWindowStr",
+      "value": "05:00-20:00",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "FridayNoEntryAfterStr",
+      "value": "",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "ExcludeLongStr",
+      "value": "",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "ExcludeShortStr",
+      "value": "",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "ExcludeLongDays",
+      "value": "",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "ExcludeShortDays",
+      "value": "",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "MinCandleLong",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MinCandleShort",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MaxCandleLong",
+      "value": "9999.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "9999.0",
+        "stop": "9999.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MaxCandleShort",
+      "value": "9999.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "9999.0",
+        "stop": "9999.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "WickPctLong",
+      "value": "50.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "50.0",
+        "stop": "50.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "WickPctShort",
+      "value": "50.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "50.0",
+        "stop": "50.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "CounterWickPctLong",
+      "value": "80.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "80.0",
+        "stop": "80.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "CounterWickPctShort",
+      "value": "80.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "80.0",
+        "stop": "80.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BodyMinPctLong",
+      "value": "15.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "15.0",
+        "stop": "15.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BodyMinPctShort",
+      "value": "15.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "15.0",
+        "stop": "15.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MinEngulfingGrowthPercentLong",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MinEngulfingGrowthPercentShort",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "GlobalMAType",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseMAFilterL",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MA1Len",
+      "value": "50",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "50",
+        "stop": "50",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MA2Len",
+      "value": "200",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "200",
+        "stop": "200",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseMAFilterS",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MA3Len",
+      "value": "200",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "200",
+        "stop": "200",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MA4Len",
+      "value": "50",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "50",
+        "stop": "50",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseMASort2050200L",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseMASort2050200S",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseMASort102050L",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseMASort102050S",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BlockModeL",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BlockMAFastL",
+      "value": "9",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "9",
+        "stop": "9",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BlockMASlowL",
+      "value": "21",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "21",
+        "stop": "21",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BlockModeS",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BlockMAFastS",
+      "value": "9",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "9",
+        "stop": "9",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BlockMASlowS",
+      "value": "21",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "21",
+        "stop": "21",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseRSIFilterL",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseRSIFilterS",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "RSILenFilter",
+      "value": "14",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "14",
+        "stop": "14",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "RSILongMin",
+      "value": "50.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "50.0",
+        "stop": "50.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "RSILongMax",
+      "value": "100.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "100.0",
+        "stop": "100.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "RSIShortMin",
+      "value": "0.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "0.0",
+        "stop": "0.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "RSIShortMax",
+      "value": "50.0",
+      "parameterType": "Double",
+      "metadata": {
+        "start": "50.0",
+        "stop": "50.0",
+        "step": "0.1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseMACDFilterL",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseMACDFilterS",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MACDFast",
+      "value": "12",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "12",
+        "stop": "12",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MACDSlow",
+      "value": "26",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "26",
+        "stop": "26",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "MACDSignal",
+      "value": "9",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "9",
+        "stop": "9",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseStochRSIFilterL",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "UseStochRSIFilterS",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "StochUpper",
+      "value": "90",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "90",
+        "stop": "90",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "StochLower",
+      "value": "10",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "10",
+        "stop": "10",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "ShowEngulfingMarkers",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "ShowLines",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "LineWidth",
+      "value": "2",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "2",
+        "stop": "2",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "InfoTextColor",
+      "value": "#FF0000FF",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "SLColor",
+      "value": "#FFFF0000",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "TPColor",
+      "value": "#FF00FF00",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "EntryColor",
+      "value": "#FF0000FF",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "OneRColor",
+      "value": "#FFFFA500",
+      "parameterType": "String",
+      "metadata": {
+        "start": "",
+        "stop": "",
+        "step": ""
+      },
+      "optimize": false
+    },
+    {
+      "name": "ShowInfoBlock",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BlockVAlign",
+      "value": "0",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "0",
+        "stop": "0",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "BlockHAlign",
+      "value": "2",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "2",
+        "stop": "2",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "ShowCandleInfo",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramEnabled",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramBotToken",
+      "value": "",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    },
+    {
+      "name": "TelegramChatId",
+      "value": "",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    },
+    {
+      "name": "TelegramTestOnStart",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramNotifyErrors",
+      "value": "True",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramNotifyStart",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramNotifyStop",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramNotifyOrder",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramNotifyFilled",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramNotifyClose",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "TelegramNotifyDailyLimit",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "WebHeartbeatEnabled",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "WebHeartbeatUrl",
+      "value": "",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    },
+    {
+      "name": "HeartbeatEnabled",
+      "value": "False",
+      "parameterType": "Boolean",
+      "metadata": {
+        "start": "False",
+        "stop": "True",
+        "step": "True"
+      },
+      "optimize": false
+    },
+    {
+      "name": "HeartbeatFilePath",
+      "value": "C:\\monitoring\\bot_heartbeat.txt",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    },
+    {
+      "name": "HeartbeatIntervalMinutes",
+      "value": "5",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "5",
+        "stop": "5",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "ChartAlertThresholdSeconds",
+      "value": "180",
+      "parameterType": "Integer",
+      "metadata": {
+        "start": "180",
+        "stop": "180",
+        "step": "1"
+      },
+      "optimize": false
+    },
+    {
+      "name": "DebugLogPath",
+      "value": "",
+      "parameterType": "String",
+      "metadata": null,
+      "optimize": false
+    }
+  ]
+};
+
+
+// ═══════════════════════════════════════════════════
+// MIGRATOR
+// ═══════════════════════════════════════════════════
+let cbotData = null;
+let lastMigResult = null;
+let migResultJson = null;
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'msg ' + type;
+  if (type !== '') setTimeout(() => el.className = 'msg', 7000);
+}
+
+function convertValue(raw, paramType) {
+  if (paramType === 'Boolean') {
+    if (typeof raw === 'boolean') return raw ? 'True' : 'False';
+    return String(raw).toLowerCase() === 'true' ? 'True' : 'False';
+  }
+  if (paramType === 'Integer') return String(Math.round(Number(raw)));
+  return String(raw);
+}
+
+function migrate() {
+  showMsg('migMsg', '', '');
+  const onlyChanged = isChecked('opt-changed');
+  const cbotParams = cbotData.Parameters || {};
+  const newOpt = JSON.parse(JSON.stringify(OPTSET_TEMPLATE));
+
+  // Override Chart from cbotset
+  const chart = cbotData.Chart || {};
+  if (!newOpt.Chart) newOpt.Chart = {};
+  if (chart.Symbol) newOpt.Chart.Symbol = chart.Symbol;
+  if (chart.Period) newOpt.Chart.Period = chart.Period;
+
+  let cntUpdated = 0, cntSame = 0, cntMissing = 0;
+  const rows = [];
+
+  newOpt.parameters.forEach(param => {
+    const name = param.name;
+    if (!param.metadata) return; // skip non-migratable (String meta=null)
+
+    if (!(name in cbotParams)) {
+      cntMissing++;
+      rows.push({ name, old: param.value, nw: '—', status: 'missing' });
+      return;
+    }
+
+    const newVal = convertValue(cbotParams[name], param.parameterType);
+    const oldVal = param.value;
+    param.optimize = false;
+
+    if (newVal !== oldVal) {
+      param.value = newVal;
+      cntUpdated++;
+      rows.push({ name, old: oldVal, nw: newVal, status: 'updated' });
+    } else {
+      rows.push({ name, old: oldVal, nw: newVal, status: 'same' });
+      cntSame++;
+    }
+  });
+
+  migResultJson = JSON.stringify(newOpt, null, 2);
+  lastMigResult = rows;
+
+  document.getElementById('cntUpdated').textContent = cntUpdated;
+  document.getElementById('cntSame').textContent = cntSame;
+  document.getElementById('cntMissing').textContent = cntMissing;
+  renderDiff(rows, onlyChanged);
+  migGoTo(2);
+  document.getElementById('mig-p2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderDiff(rows, onlyChanged) {
+  const filtered = onlyChanged ? rows.filter(r => r.status !== 'same') : rows;
+  const tbody = document.getElementById('diffBody');
+  tbody.innerHTML = '';
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:2rem;">Keine Parameter zum Anzeigen.</td></tr>';
+    return;
+  }
+  filtered.forEach(r => {
+    const tr = document.createElement('tr');
+    let badge, newCell;
+    switch (r.status) {
+      case 'updated':
+        badge = '<span class="badge badge-updated">UPDATED</span>';
+        newCell = `<td class="td-new-updated">${esc(r.nw)}</td>`;
+        break;
+      case 'same':
+        badge = '<span class="badge badge-same">SAME</span>';
+        newCell = `<td class="td-new-same">${esc(r.nw)}</td>`;
+        break;
+      default:
+        badge = '<span class="badge badge-missing">MISSING</span>';
+        newCell = `<td class="c-muted">—</td>`;
+    }
+    tr.innerHTML = `<td class="td-name">${esc(r.name)}</td><td class="td-old">${esc(r.old)}</td>${newCell}<td>${badge}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function loadCbot(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      cbotData = JSON.parse(e.target.result);
+      const pc = Object.keys(cbotData.Parameters || {}).length;
+      const chart = cbotData.Chart || {};
+      const sym = chart.Symbol || '';
+      const per = chart.Period ? chart.Period.toUpperCase() : '';
+      const meta = sym ? `${sym} ${per} · ${pc} Parameter` : `${pc} Parameter`;
+      showLoadedZone('cbotDrop', 'cbotFile', file.name, meta);
+      migrate();
+    } catch(err) {
+      showMsg('migMsg', 'Ungültige Datei: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function showLoadedZone(zoneId, inputId, name, meta) {
+  const zone = document.getElementById(zoneId);
+  zone.onclick = null;
+  zone.style.cssText = 'display:block;padding:0;border:none;min-height:unset;margin:0;';
+  zone.innerHTML = `<div class="file-loaded">
+    <div style="font-size:1.25rem;">✅</div>
+    <div style="flex:1;overflow:hidden;">
+      <div class="file-loaded-name">${esc(name)}</div>
+      <div class="file-loaded-meta">${esc(meta)}</div>
+    </div>
+    <button class="btn btn-secondary" style="font-size:.75rem;padding:.375rem .75rem;flex-shrink:0;"
+            onclick="clearCbot()">✕</button>
+  </div>`;
+}
+
+function clearCbot() {
+  cbotData = null; lastMigResult = null; migResultJson = null;
+  document.getElementById('cbotFile').value = '';
+  const zone = document.getElementById('cbotDrop');
+  zone.style.cssText = '';
+  zone.className = 'drop-zone';
+  zone.innerHTML = `<div class="drop-zone-icon">📂</div>
+    <div class="drop-zone-title">Datei hierher ziehen</div>
+    <div class="drop-zone-sub">oder klicken zum Auswählen</div>
+    <div class="drop-zone-ext">.cbotset</div>`;
+  zone.onclick = () => document.getElementById('cbotFile').click();
+  showMsg('migMsg', '', '');
+}
+
+document.getElementById('cbotFile').addEventListener('change', e => {
+  if (e.target.files[0]) loadCbot(e.target.files[0]);
+});
+
+// Drag & drop
+(function() {
+  const el = document.getElementById('cbotDrop');
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragging'); });
+  el.addEventListener('dragleave', () => el.classList.remove('dragging'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('dragging');
+    if (e.dataTransfer.files[0]) loadCbot(e.dataTransfer.files[0]);
+  });
+})();
+
+// Download
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  if (!migResultJson) return;
+  const chart = (cbotData && cbotData.Chart) || {};
+  const sym = (chart.Symbol || 'Export').replace(/[^a-zA-Z0-9]/g, '');
+  const per = (chart.Period || '').toUpperCase();
+  dlText('﻿' + migResultJson, `cTrader_Optimierung_${sym}_${per}.optset`, 'application/json');
+});
+
+function dlText(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════
+// AUSWERTUNG — LOG PARSER
+// ═══════════════════════════════════════════════════
+const BE_THRESHOLD = 100;
+
+function parseUsd(s) {
+  return parseFloat(String(s).replace(/\./g, '').replace(',', '.'));
+}
+
+function parseTs(line) {
+  const m = line.match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
+  if (!m) return null;
+  return new Date(+m[3], +m[2]-1, +m[1], +m[4], +m[5], +m[6], +m[7]);
+}
+
+function maxDrawdown(vals) {
+  if (!vals.length) return [0, 0];
+  let peak = vals[0], ddAbs = 0, ddPct = 0;
+  for (const v of vals) {
+    if (v > peak) peak = v;
+    if (peak <= 0) continue;
+    const da = peak - v, dp = (da / peak) * 100;
+    if (da > ddAbs) { ddAbs = da; ddPct = dp; }
+  }
+  return [ddAbs, ddPct];
+}
+
+function normalizeRule(name) {
+  const m = name.match(/(Regel\s*\d+)/);
+  return m ? m[1] : name;
+}
+
+function sortRuleKey(k) {
+  const m = k.match(/Regel\s*(\d+)/);
+  return m ? +m[1] : 999;
+}
+
+function initDir() { return { TP:0, BE:0, SL:0 }; }
+function initTrail() { return { NearBE:0, TrailProfit:0 }; }
+function initCandleDir() { return { TP:0, TSL:0, SL:0, pnl:0 }; }
+
+function getOrCreate(obj, key, factory) {
+  if (!obj[key]) obj[key] = factory();
+  return obj[key];
+}
+
+function calcDailyDD(balanceEvts, equityEvts, initBal) {
+  if (!balanceEvts.length || !equityEvts.length || initBal === null) return null;
+  balanceEvts.sort((a,b) => a[0]-b[0]);
+  equityEvts.sort((a,b) => a[0]-b[0]);
+
+  function dateStr(d) { return d.toDateString(); }
+
+  // Group equity by date
+  const equityByDate = {};
+  for (const [ts, val] of equityEvts) {
+    const dk = dateStr(ts);
+    if (!equityByDate[dk]) equityByDate[dk] = [];
+    equityByDate[dk].push(val);
+  }
+
+  // Get sorted unique dates
+  const allDates = [...new Set([
+    ...balanceEvts.map(([ts]) => dateStr(ts)),
+    ...equityEvts.map(([ts]) => dateStr(ts))
+  ])].map(s => new Date(s)).sort((a,b) => a-b);
+
+  let curBal = balanceEvts[0][1];
+  let bIdx = 0;
+  let worstUsed = 0, worstPct = 0, worstDay = null, remAtWorst = 0, limitAtWorst = 0;
+
+  for (const day of allDates) {
+    const dk = dateStr(day);
+    while (bIdx < balanceEvts.length && dateStr(balanceEvts[bIdx][0]) < dk) {
+      curBal = balanceEvts[bIdx][1]; bIdx++;
+    }
+    const dayStartBal = curBal;
+    const dailyLimitAmt = initBal * 0.05;
+    const dailyEquityLimit = dayStartBal - dailyLimitAmt;
+
+    const dayEqs = equityByDate[dk] || [];
+    if (dayEqs.length) {
+      const worstEq = Math.min(...dayEqs);
+      const dailyUsed = Math.max(0, dayStartBal - worstEq);
+      if (dailyUsed > worstUsed) {
+        worstUsed = dailyUsed;
+        worstPct = dayStartBal > 0 ? (dailyUsed / dayStartBal * 100) : 0;
+        worstDay = day;
+        remAtWorst = Math.max(0, worstEq - dailyEquityLimit);
+        limitAtWorst = dailyEquityLimit;
+      }
+    }
+    while (bIdx < balanceEvts.length && dateStr(balanceEvts[bIdx][0]) === dk) {
+      curBal = balanceEvts[bIdx][1]; bIdx++;
+    }
+  }
+  return {
+    worstUsed, worstPct,
+    worstDay: worstDay ? fmt2(worstDay.getDate())+'.'+fmt2(worstDay.getMonth()+1)+'.'+worstDay.getFullYear() : '-',
+    remAtWorst, limitAtWorst
+  };
+}
+
+function fmt2(n) { return String(n).padStart(2,'0'); }
+function fmtUsd(v) { return (v >= 0 ? '+' : '') + v.toFixed(2); }
+function fmtPct(v) { return v.toFixed(2) + '%'; }
+function fmtWr(tp, total) { return total > 0 ? (tp/total*100).toFixed(1)+'%' : '-'; }
+
+function parseLog(text) {
+  const lines = text.split(/\r?\n/);
+
+  const stats = {}; // stats[time][dir]['TP'|'BE'|'SL']
+  const ruleStats = {};
+  const trailingBD = {};
+  const pnlVals = { Long:{positive:[],negative:[]}, Short:{positive:[],negative:[]} };
+
+  let curCandleTime = null, curCandleDate = null, curDir = null, curSetup = null;
+  let curPosId = null, curClosePosId = null;
+
+  const orderToCandle = {}, orderToDir = {}, orderToSetup = {}, orderToDate = {};
+  const posToCandle = {}, posToDir = {}, posToRule = {}, posToDate = {};
+  const posToSecured = {}, posTrailing = {};
+  let curPosClose = null;
+
+  let curCandleHigh = null, curCandleLow = null;
+  const orderToSize = {}, posToSize = {};
+  const candleTrades = [];
+  const candleOutcome = {};
+  let manualCount = 0;
+  const manualPnl = { Long:0, Short:0 };
+  const manualTrades = { Long:0, Short:0 };
+
+  const weekdayStats = {};
+  let pendingLimitCandle=null, pendingLimitDir=null, pendingLimitSize=null, pendingLimitSetup=null;
+  let startBalance=null, curBalance=null;
+  const balanceCurve=[], equityCurve=[], balanceEvts=[], equityEvts=[];
+  let activePos = null;
+  const closedDetails = {};
+
+  const rxTs      = /^(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2}\.\d{3})/;
+  const rxStartBal= /Start-Balance\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*USD/;
+  const rxEquity  = /Aktuelles Equity\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*USD/;
+  const rxClose   = /Close=([+-]?\d+(?:\.\d{3})*(?:,\d+)?)/;
+  const rxKerze   = /Kerze Berlin\s*:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/;
+  const rxKDaten  = /Kerzendaten\s*:\s*Open\s+([\d.,]+)\s+High\s+([\d.,]+)\s+Low\s+([\d.,]+)\s+Close\s+([\d.,]+)/;
+  const rxDir     = /\b(Buy|Sell|Long|Short)\b/i;
+  const rxSetup   = /Setup-Regel\s*:\s*(Regel\s*\d+(?:\s*\([^)]*\))?)/;
+  const rxOrder   = /Status\s*:\s*✅ ERFOLGREICH \((?:Limit )?Order #\(?(\d+)\)?/;
+  const rxLimitFB = /Status\s*:\s*✅ ERFOLGREICH \(Limit Order\)\s*$/;
+  const rxFill    = /\[PENDING-FILLED\] ✅ Order #(\d+) → Position #(\d+)/;
+  const rxTrail   = /Position #(\d+) \| Stufe \d+ aktiviert/;
+  const rxPosId   = /Position #(\d+) \((Buy|Sell)\) \| Initial Risk:/;
+  const rxSecured = /Gesichert\s*:\s*([+-]?\d+(?:[.,]\d+)?)/;
+  const rxClosed  = /Position #(\d+) geschlossen/;
+  const rxVolume  = /Volumen\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*Lots/;
+  const rxEntry   = /Entry\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)/;
+  const rxGrund   = /Grund\s*:\s*(Take-Profit|Stop-Loss|Manuell\/Bot)/;
+  const rxPnl     = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*USD/;
+
+  for (const line of lines) {
+    const lineTs = parseTs(line);
+    let m;
+
+    // Start balance
+    if ((m = line.match(rxStartBal)) && startBalance === null) {
+      startBalance = parseUsd(m[1]);
+      curBalance = startBalance;
+      balanceCurve.push(startBalance); equityCurve.push(startBalance);
+      if (lineTs) { balanceEvts.push([lineTs, startBalance]); equityEvts.push([lineTs, startBalance]); }
+    }
+
+    // Equity
+    if ((m = line.match(rxEquity)) && lineTs) {
+      const eq = parseUsd(m[1]);
+      equityCurve.push(eq); equityEvts.push([lineTs, eq]);
+    }
+
+    // Close price for unrealized PnL
+    if ((m = line.match(rxClose)) && activePos && lineTs) {
+      activePos.closePrices.push([lineTs, parseUsd(m[1])]);
+    }
+
+    // Candle time
+    if ((m = line.match(rxKerze))) {
+      curCandleDate = m[1]; curCandleTime = m[2];
+      curDir = null; curCandleHigh = null; curCandleLow = null;
+    }
+
+    // Candle data
+    if ((m = line.match(rxKDaten)) && curCandleTime) {
+      curCandleHigh = parseUsd(m[2]); curCandleLow = parseUsd(m[3]);
+    }
+
+    // Direction
+    if (curCandleTime && !curDir && (m = line.match(rxDir))) {
+      const d = m[1].toLowerCase();
+      curDir = (d==='buy'||d==='long') ? 'Long' : 'Short';
+    }
+
+    // Setup rule
+    if ((m = line.match(rxSetup)) && curCandleTime) {
+      curSetup = { rule: m[1].trim(), direction: curDir, resolved: false };
+    }
+
+    // Order placed
+    if ((m = line.match(rxOrder)) && curCandleTime) {
+      const oid = m[1];
+      orderToCandle[oid] = curCandleTime;
+      orderToDate[oid] = curCandleDate;
+      orderToDir[oid] = curDir || 'Long';
+      if (curSetup && !curSetup.resolved) {
+        if (!curSetup.direction) curSetup.direction = orderToDir[oid];
+        orderToSetup[oid] = curSetup;
+      }
+      if (curCandleHigh!==null && curCandleLow!==null) orderToSize[oid] = curCandleHigh - curCandleLow;
+      curCandleTime = null; curDir = null;
+    }
+
+    // Limit order fallback
+    if (line.match(rxLimitFB) && curCandleTime) {
+      pendingLimitCandle = curCandleTime;
+      pendingLimitDir = curDir || 'Long';
+      pendingLimitSize = (curCandleHigh!==null && curCandleLow!==null) ? curCandleHigh-curCandleLow : null;
+      pendingLimitSetup = (curSetup && !curSetup.resolved) ? curSetup : null;
+      curCandleTime = null; curDir = null;
+    }
+
+    // Pending filled
+    if ((m = line.match(rxFill))) {
+      const [,oid,pid] = m;
+      if (pendingLimitCandle && !(oid in orderToCandle)) {
+        orderToCandle[oid] = pendingLimitCandle;
+        orderToDir[oid] = pendingLimitDir;
+        if (pendingLimitSize !== null) orderToSize[oid] = pendingLimitSize;
+        if (pendingLimitSetup) orderToSetup[oid] = pendingLimitSetup;
+        pendingLimitCandle = pendingLimitDir = pendingLimitSize = pendingLimitSetup = null;
+      }
+      if (oid in orderToCandle) {
+        posToCandle[pid] = orderToCandle[oid];
+        posToDate[pid] = orderToDate[oid] || null;
+        posToDir[pid] = orderToDir[oid] || 'Long';
+        posTrailing[pid] = false;
+        posToSecured[pid] = 0;
+        const s = orderToSetup[oid];
+        if (s && s.rule) posToRule[pid] = normalizeRule(s.rule);
+        if (oid in orderToSize) posToSize[pid] = orderToSize[oid];
+        activePos = { id:pid, dir:posToDir[pid], balBefore:curBalance, closePrices:[] };
+      }
+    }
+
+    // Trailing
+    if ((m = line.match(rxTrail))) posTrailing[m[1]] = true;
+
+    // Position ID for secured
+    if ((m = line.match(rxPosId))) curPosId = m[1];
+
+    // Secured amount
+    if ((m = line.match(rxSecured)) && curPosId) posToSecured[curPosId] = parseUsd(m[1]);
+
+    // Position closed
+    if ((m = line.match(rxClosed))) {
+      curPosClose = m[1]; curClosePosId = m[1];
+      closedDetails[curClosePosId] = { entry:null, volume:null };
+    }
+
+    // Volume
+    if ((m = line.match(rxVolume)) && curClosePosId && closedDetails[curClosePosId]) {
+      closedDetails[curClosePosId].volume = parseUsd(m[1]);
+    }
+
+    // Entry
+    if ((m = line.match(rxEntry)) && curClosePosId && closedDetails[curClosePosId]) {
+      if (closedDetails[curClosePosId].entry === null)
+        closedDetails[curClosePosId].entry = parseUsd(m[1]);
+    }
+
+    // Grund (result)
+    if ((m = line.match(rxGrund)) && curPosClose) {
+      const grund = m[1], pid = curPosClose;
+      if (grund === 'Manuell/Bot') {
+        candleOutcome[pid] = 'MANUELL';
+        if (curPosId === pid) curPosId = null;
+      } else if (pid in posToCandle) {
+        const ct = posToCandle[pid], dir = posToDir[pid], rk = posToRule[pid];
+        if (!stats[ct]) stats[ct] = { Long:initDir(), Short:initDir() };
+        if (!ruleStats[rk||'?']) ruleStats[rk||'?'] = { Long:initDir(), Short:initDir() };
+        if (!trailingBD[rk||'?']) trailingBD[rk||'?'] = { Long:initTrail(), Short:initTrail() };
+
+        if (grund === 'Take-Profit') {
+          stats[ct][dir].TP++;
+          if (rk) ruleStats[rk][dir].TP++;
+          candleOutcome[pid] = 'TP';
+        } else { // Stop-Loss
+          if (posTrailing[pid]) {
+            stats[ct][dir].BE++;
+            if (rk) {
+              ruleStats[rk][dir].BE++;
+              const sec = posToSecured[pid] || 0;
+              if (Math.abs(sec) <= BE_THRESHOLD) trailingBD[rk][dir].NearBE++;
+              else trailingBD[rk][dir].TrailProfit++;
+            }
+            candleOutcome[pid] = 'TSL';
+          } else {
+            stats[ct][dir].SL++;
+            if (rk) ruleStats[rk][dir].SL++;
+            candleOutcome[pid] = 'SL';
+          }
+        }
+        // Track weekday
+        const wdDate = posToDate[pid];
+        if (wdDate) {
+          const [wy,wm,wd] = wdDate.split('-').map(Number);
+          const wdIdx = new Date(wy,wm-1,wd).getDay();
+          const wdName = ['So','Mo','Di','Mi','Do','Fr','Sa'][wdIdx];
+          if (!weekdayStats[wdName]) weekdayStats[wdName] = {Long:{TP:0,BE:0,SL:0},Short:{TP:0,BE:0,SL:0}};
+          const outcome2 = candleOutcome[pid];
+          if (outcome2 === 'TP') weekdayStats[wdName][dir].TP++;
+          else if (outcome2 === 'TSL') weekdayStats[wdName][dir].BE++;
+          else if (outcome2 === 'SL') weekdayStats[wdName][dir].SL++;
+        }
+        if (curPosId === pid) curPosId = null;
+      }
+    }
+
+    // PnL
+    if ((m = line.match(rxPnl)) && curClosePosId) {
+      const pnlVal = parseUsd(m[1]);
+      const dir = posToDir[curClosePosId];
+      const ct = posToCandle[curClosePosId] || '-';
+      const outcome = candleOutcome[curClosePosId];
+
+      if (dir && outcome !== 'MANUELL') {
+        if (pnlVal >= 0) pnlVals[dir].positive.push([pnlVal, ct]);
+        else pnlVals[dir].negative.push([pnlVal, ct]);
+      }
+
+      // Unrealized equity via close prices
+      const ap = activePos, cd = closedDetails[curClosePosId] || {};
+      if (ap && ap.id === curClosePosId && ap.balBefore !== null && cd.entry !== null && cd.volume !== null) {
+        for (const [pts, px] of ap.closePrices) {
+          const unrealPnl = ap.dir === 'Long' ? (px - cd.entry)*cd.volume : (cd.entry - px)*cd.volume;
+          const eqVal = ap.balBefore + unrealPnl;
+          equityCurve.push(eqVal); equityEvts.push([pts, eqVal]);
+        }
+      }
+
+      if (curBalance !== null && lineTs) {
+        curBalance += pnlVal;
+        balanceCurve.push(curBalance); equityCurve.push(curBalance);
+        balanceEvts.push([lineTs, curBalance]); equityEvts.push([lineTs, curBalance]);
+      }
+
+      // Candle size bin data
+      if (curClosePosId in posToSize && dir) {
+        if (outcome === 'MANUELL') {
+          manualCount++; manualPnl[dir] += pnlVal; manualTrades[dir]++;
+        } else if (outcome) {
+          candleTrades.push({ size:posToSize[curClosePosId], dir, outcome, pnl:pnlVal });
+        }
+      }
+
+      curPosClose = null; curClosePosId = null; activePos = null;
+    }
+  }
+
+  return { stats, ruleStats, trailingBD, pnlVals, weekdayStats, startBalance,
+    balanceCurve, equityCurve, balanceEvts, equityEvts,
+    candleTrades, candleOutcome, manualCount, manualPnl, manualTrades };
+}
+
+// ─── HTML rendering helpers ───────────────────────────────────────────
+function colorPnl(v) {
+  const cls = v >= 0 ? 'c-green' : 'c-red';
+  return `<span class="${cls}">${fmtUsd(v)}</span>`;
+}
+function colorCount(n, cls) {
+  if (n === 0) return `<span class="c-muted">0</span>`;
+  return `<span class="${cls}">${n}</span>`;
+}
+
+function renderMainTable(stats, pnlVals) {
+  // Collect all time keys
+  const pnlByTime = { Long:{}, Short:{} };
+  for (const dir of ['Long','Short']) {
+    for (const [v,ct] of pnlVals[dir].positive) pnlByTime[dir][ct] = (pnlByTime[dir][ct]||0)+v;
+    for (const [v,ct] of pnlVals[dir].negative) pnlByTime[dir][ct] = (pnlByTime[dir][ct]||0)+v;
+  }
+  const allKeys = [...new Set([...Object.keys(stats),...Object.keys(pnlByTime.Long),...Object.keys(pnlByTime.Short)])].sort();
+
+  let tl_tp=0,tl_be=0,tl_sl=0,ts_tp=0,ts_be=0,ts_sl=0,tl_pnl=0,ts_pnl=0;
+  let rows = '';
+  for (const tk of allKeys) {
+    const sl = (stats[tk]||{}).Long||initDir(), ss = (stats[tk]||{}).Short||initDir();
+    const {TP:ltp,BE:lbe,SL:lsl}=sl, {TP:stp,BE:sbe,SL:ssl}=ss;
+    tl_tp+=ltp;tl_be+=lbe;tl_sl+=lsl;ts_tp+=stp;ts_be+=sbe;ts_sl+=ssl;
+    const lt=ltp+lbe+lsl, st=stp+sbe+ssl;
+    const lnet=(pnlByTime.Long[tk]||0), snet=(pnlByTime.Short[tk]||0);
+    tl_pnl+=lnet; ts_pnl+=snet;
+    rows += `<tr>
+      <td style="text-align:left">${esc(tk)}</td>
+      <td>${colorCount(ltp,'c-green')}</td><td>${colorCount(lbe,'c-yellow')}</td><td>${colorCount(lsl,'c-red')}</td>
+      <td>${fmtWr(ltp,lt)}</td><td>${colorPnl(lnet)}</td>
+      <td class="c-muted" style="padding:0 .5rem;">|</td>
+      <td>${colorCount(stp,'c-green')}</td><td>${colorCount(sbe,'c-yellow')}</td><td>${colorCount(ssl,'c-red')}</td>
+      <td>${fmtWr(stp,st)}</td><td>${colorPnl(snet)}</td>
+      <td>${lt+st||''}</td>
+    </tr>`;
+  }
+  const tlt=tl_tp+tl_be+tl_sl, tst=ts_tp+ts_be+ts_sl;
+  rows += `<tr class="total-row">
+    <td style="text-align:left">GESAMT</td>
+    <td>${colorCount(tl_tp,'c-green')}</td><td>${colorCount(tl_be,'c-yellow')}</td><td>${colorCount(tl_sl,'c-red')}</td>
+    <td>${fmtWr(tl_tp,tlt)}</td><td>${colorPnl(tl_pnl)}</td>
+    <td class="c-muted" style="padding:0 .5rem;">|</td>
+    <td>${colorCount(ts_tp,'c-green')}</td><td>${colorCount(ts_be,'c-yellow')}</td><td>${colorCount(ts_sl,'c-red')}</td>
+    <td>${fmtWr(ts_tp,tst)}</td><td>${colorPnl(ts_pnl)}</td>
+    <td>${tlt+tst}</td>
+  </tr>`;
+  return `<div class="table-wrap"><table class="stat-table">
+    <thead><tr>
+      <th style="text-align:left">Uhrzeit</th>
+      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR</th><th>L-P&amp;L</th>
+      <th></th>
+      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR</th><th>S-P&amp;L</th>
+      <th>Gesamt</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderRuleTable(ruleStats, trailingBD, manualCount) {
+  const allRules = ['Regel 1','Regel 2','Regel 3','Regel 4'];
+  const extra = Object.keys(ruleStats).filter(k=>!allRules.includes(k)).sort((a,b)=>sortRuleKey(a)-sortRuleKey(b));
+  const keys = [...allRules, ...extra];
+
+  let tl_tp=0,tl_be=0,tl_sl=0,ts_tp=0,ts_be=0,ts_sl=0,tl_tr=0,ts_tr=0;
+  let rows = '';
+  for (const rk of keys) {
+    const sl=(ruleStats[rk]||{}).Long||initDir(), ss=(ruleStats[rk]||{}).Short||initDir();
+    const tl=(trailingBD[rk]||{}).Long||initTrail(), ts=(trailingBD[rk]||{}).Short||initTrail();
+    const {TP:ltp,BE:lbe,SL:lsl}=sl,{TP:stp,BE:sbe,SL:ssl}=ss;
+    const ltr=tl.TrailProfit, str=ts.TrailProfit;
+    tl_tp+=ltp;tl_be+=lbe;tl_sl+=lsl;ts_tp+=stp;ts_be+=sbe;ts_sl+=ssl;tl_tr+=ltr;ts_tr+=str;
+    const lt=ltp+lbe+lsl, st=stp+sbe+ssl;
+    rows += `<tr>
+      <td style="text-align:left">${esc(rk)}</td>
+      <td>${colorCount(ltp,'c-green')}</td><td>${colorCount(lbe,'c-yellow')}</td><td>${colorCount(lsl,'c-red')}</td>
+      <td>${fmtWr(ltp,lt)}</td><td>${fmtWr(ltp+ltr,lt)}</td>
+      <td class="c-muted" style="padding:0 .5rem;">|</td>
+      <td>${colorCount(stp,'c-green')}</td><td>${colorCount(sbe,'c-yellow')}</td><td>${colorCount(ssl,'c-red')}</td>
+      <td>${fmtWr(stp,st)}</td><td>${fmtWr(stp+str,st)}</td>
+      <td>${lt+st||''}</td>
+    </tr>`;
+  }
+  const tlt=tl_tp+tl_be+tl_sl, tst=ts_tp+ts_be+ts_sl;
+  rows += `<tr class="total-row">
+    <td style="text-align:left">GESAMT</td>
+    <td>${colorCount(tl_tp,'c-green')}</td><td>${colorCount(tl_be,'c-yellow')}</td><td>${colorCount(tl_sl,'c-red')}</td>
+    <td>${fmtWr(tl_tp,tlt)}</td><td>${fmtWr(tl_tp+tl_tr,tlt)}</td>
+    <td class="c-muted" style="padding:0 .5rem;">|</td>
+    <td>${colorCount(ts_tp,'c-green')}</td><td>${colorCount(ts_be,'c-yellow')}</td><td>${colorCount(ts_sl,'c-red')}</td>
+    <td>${fmtWr(ts_tp,tst)}</td><td>${fmtWr(ts_tp+ts_tr,tst)}</td>
+    <td>${tlt+tst}</td>
+  </tr>`;
+  if (manualCount > 0) {
+    rows += `<tr class="manual-row"><td style="text-align:left">Manuell*</td>
+      <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td></td>
+      <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+      <td>${manualCount}</td></tr>`;
+  }
+  return `<div class="table-wrap"><table class="stat-table">
+    <thead><tr>
+      <th style="text-align:left">Regel</th>
+      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR</th><th>L-WR+</th>
+      <th></th>
+      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR</th><th>S-WR+</th>
+      <th>Gesamt</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderTrailingTable(trailingBD) {
+  const allRules = ['Regel 1','Regel 2','Regel 3','Regel 4'];
+  const extra = Object.keys(trailingBD).filter(k=>!allRules.includes(k)).sort((a,b)=>sortRuleKey(a)-sortRuleKey(b));
+  const keys = [...allRules, ...extra];
+  const beLabel = `BE${BE_THRESHOLD}`;
+
+  let tl_be=0,tl_tr=0,ts_be=0,ts_tr=0;
+  let rows = '';
+  for (const rk of keys) {
+    const tl=(trailingBD[rk]||{}).Long||initTrail(), ts=(trailingBD[rk]||{}).Short||initTrail();
+    const {NearBE:lbe,TrailProfit:ltr}=tl, {NearBE:sbe,TrailProfit:str}=ts;
+    tl_be+=lbe;tl_tr+=ltr;ts_be+=sbe;ts_tr+=str;
+    rows += `<tr>
+      <td style="text-align:left">${esc(rk)}</td>
+      <td>${colorCount(lbe,'c-yellow')}</td><td>${colorCount(ltr,'c-green')}</td>
+      <td class="c-muted" style="padding:0 .5rem;">|</td>
+      <td>${colorCount(sbe,'c-yellow')}</td><td>${colorCount(str,'c-green')}</td>
+      <td>${lbe+ltr+sbe+str||''}</td>
+    </tr>`;
+  }
+  rows += `<tr class="total-row">
+    <td style="text-align:left">GESAMT</td>
+    <td>${colorCount(tl_be,'c-yellow')}</td><td>${colorCount(tl_tr,'c-green')}</td>
+    <td class="c-muted" style="padding:0 .5rem;">|</td>
+    <td>${colorCount(ts_be,'c-yellow')}</td><td>${colorCount(ts_tr,'c-green')}</td>
+    <td>${tl_be+tl_tr+ts_be+ts_tr}</td>
+  </tr>`;
+  return `<div class="table-wrap"><table class="stat-table">
+    <thead><tr>
+      <th style="text-align:left">Regel</th>
+      <th>L-${beLabel}</th><th>L-Trail+</th><th></th>
+      <th>S-${beLabel}</th><th>S-Trail+</th><th>Gesamt</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderPnlOverview(pnlVals) {
+  let html = '';
+  for (const dir of ['Long','Short']) {
+    const pos = [...pnlVals[dir].positive].sort((a,b)=>a[1]<b[1]?-1:1);
+    const neg = [...pnlVals[dir].negative].sort((a,b)=>a[1]<b[1]?-1:1);
+    const sumPos = pos.reduce((s,[v])=>s+v,0);
+    const sumNeg = neg.reduce((s,[v])=>s+v,0);
+    const cnt = Math.max(pos.length, neg.length);
+    let rows = '';
+    for (let i=0;i<cnt;i++) {
+      const [pv,pt]=pos[i]||['',''];
+      const [nv,nt]=neg[i]||['',''];
+      rows+=`<tr>
+        <td>${pv!==''?colorPnl(pv):''}</td><td class="c-muted">${esc(String(pt))}</td>
+        <td class="c-muted" style="padding:0 .25rem;">|</td>
+        <td>${nv!==''?colorPnl(nv):''}</td><td class="c-muted">${esc(String(nt))}</td>
+      </tr>`;
+    }
+    rows+=`<tr class="total-row">
+      <td colspan="2">${colorPnl(sumPos)} (Sum+)</td><td></td>
+      <td colspan="2">${colorPnl(sumNeg)} (Sum-)</td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="5" style="text-align:center;">Netto: ${colorPnl(sumPos+sumNeg)} USD</td>
+    </tr>`;
+    html += `<div><div class="section-title">${dir}</div>
+      <div class="table-wrap"><table class="stat-table">
+        <thead><tr><th>P&amp;L</th><th>Open-Zeit</th><th></th><th>P&amp;L</th><th>Open-Zeit</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div></div>`;
+  }
+  return `<div class="pnl-cols">${html}</div>`;
+}
+
+function renderPnlByTime(pnlVals, stats) {
+  const pbt = { Long:{}, Short:{} };
+  for (const dir of ['Long','Short']) {
+    for (const [v,ct] of pnlVals[dir].positive) pbt[dir][ct]=(pbt[dir][ct]||0)+v;
+    for (const [v,ct] of pnlVals[dir].negative) pbt[dir][ct]=(pbt[dir][ct]||0)+v;
+  }
+  let html = '';
+  for (const dir of ['Long','Short']) {
+    const tks = Object.keys(pbt[dir]).sort();
+    let total=0, rows='';
+    for (const tk of tks) {
+      const net=pbt[dir][tk]; total+=net;
+      const s=(stats[tk]||{})[dir]||initDir();
+      rows+=`<tr>
+        <td style="text-align:left">${esc(tk)}</td>
+        <td>${colorCount(s.TP,'c-green')}</td>
+        <td>${colorCount(s.BE,'c-yellow')}</td>
+        <td>${colorCount(s.SL,'c-red')}</td>
+        <td>${colorPnl(net)}</td>
+      </tr>`;
+    }
+    rows+=`<tr class="total-row"><td style="text-align:left">Gesamt</td><td colspan="3"></td><td>${colorPnl(total)} USD</td></tr>`;
+    html+=`<div><div class="section-title">${dir}</div>
+      <div class="table-wrap"><table class="stat-table">
+        <thead><tr><th style="text-align:left">Open</th><th>Win</th><th>TSL</th><th>SL</th><th>Netto</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div></div>`;
+  }
+  // Combined
+  const comb={};
+  for (const dir of ['Long','Short'])
+    for (const [ct,v] of Object.entries(pbt[dir])) comb[ct]=(comb[ct]||0)+v;
+  let ctotal=0, crows='';
+  for (const tk of Object.keys(comb).sort()) {
+    const net=comb[tk]; ctotal+=net;
+    const sl=(stats[tk]||{}).Long||initDir(), ss=(stats[tk]||{}).Short||initDir();
+    crows+=`<tr>
+      <td style="text-align:left">${esc(tk)}</td>
+      <td>${colorCount(sl.TP+ss.TP,'c-green')}</td>
+      <td>${colorCount(sl.BE+ss.BE,'c-yellow')}</td>
+      <td>${colorCount(sl.SL+ss.SL,'c-red')}</td>
+      <td>${colorPnl(net)}</td>
+    </tr>`;
+  }
+  crows+=`<tr class="total-row"><td style="text-align:left">Gesamt</td><td colspan="3"></td><td>${colorPnl(ctotal)} USD</td></tr>`;
+  html+=`<div><div class="section-title">Gesamt</div>
+    <div class="table-wrap"><table class="stat-table">
+      <thead><tr><th style="text-align:left">Open</th><th>Win</th><th>TSL</th><th>SL</th><th>Netto</th></tr></thead>
+      <tbody>${crows}</tbody>
+    </table></div></div>`;
+  return `<div class="pnl-cols" style="grid-template-columns:1fr 1fr;gap:1rem;">${html}</div>`;
+}
+
+
+function renderWeekdayTable(weekdayStats) {
+  const ORDER = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+  let tl_tp=0,tl_be=0,tl_sl=0,ts_tp=0,ts_be=0,ts_sl=0;
+  let rows = '';
+  for (const wd of ORDER) {
+    const sl=(weekdayStats[wd]||{}).Long||initDir();
+    const ss=(weekdayStats[wd]||{}).Short||initDir();
+    const {TP:ltp,BE:lbe,SL:lsl}=sl, {TP:stp,BE:sbe,SL:ssl}=ss;
+    tl_tp+=ltp;tl_be+=lbe;tl_sl+=lsl;ts_tp+=stp;ts_be+=sbe;ts_sl+=ssl;
+    const lt=ltp+lbe+lsl, st=stp+sbe+ssl;
+    const g=lt+st;
+    rows+=`<tr>
+      <td style="text-align:left;font-weight:500">${esc(wd)}</td>
+      <td class="c-muted">${g||''}</td>
+      <td>${colorCount(ltp,'c-green')}</td><td>${colorCount(lbe,'c-yellow')}</td><td>${colorCount(lsl,'c-red')}</td>
+      <td>${fmtWr(ltp,lt)}</td>
+      <td class="c-muted" style="padding:0 .25rem;">|</td>
+      <td>${colorCount(stp,'c-green')}</td><td>${colorCount(sbe,'c-yellow')}</td><td>${colorCount(ssl,'c-red')}</td>
+      <td>${fmtWr(stp,st)}</td>
+    </tr>`;
+  }
+  const tlt=tl_tp+tl_be+tl_sl, tst=ts_tp+ts_be+ts_sl;
+  rows+=`<tr class="total-row">
+    <td style="text-align:left">GESAMT</td>
+    <td class="c-muted">${tlt+tst}</td>
+    <td>${colorCount(tl_tp,'c-green')}</td><td>${colorCount(tl_be,'c-yellow')}</td><td>${colorCount(tl_sl,'c-red')}</td>
+    <td>${fmtWr(tl_tp,tlt)}</td>
+    <td class="c-muted" style="padding:0 .25rem;">|</td>
+    <td>${colorCount(ts_tp,'c-green')}</td><td>${colorCount(ts_be,'c-yellow')}</td><td>${colorCount(ts_sl,'c-red')}</td>
+    <td>${fmtWr(ts_tp,tst)}</td>
+  </tr>`;
+  return `<div class="table-wrap"><table class="stat-table">
+    <thead><tr>
+      <th style="text-align:left">Wochentag</th>
+      <th>Gesamt</th>
+      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR%</th>
+      <th></th>
+      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR%</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderCandleBins(trades, numBins, manualCount, manualPnl, manualTrades) {
+  if (!trades.length) return '<p class="c-muted" style="padding:1rem;">Keine Kerzengröße-Daten vorhanden.</p>';
+
+  const sizes = trades.map(t=>t.size);
+  const minS = Math.min(...sizes), maxS = Math.max(...sizes);
+  if (maxS <= minS) return '<p class="c-muted" style="padding:1rem;">Alle Trades haben dieselbe Kerzengröße.</p>';
+
+  function emptyBin(lo,hi) {
+    return {lo,hi, Long:initCandleDir(), Short:initCandleDir()};
+  }
+  function renderBinTable(bins, title) {
+    let tl_tp=0,tl_tsl=0,tl_sl=0,ts_tp=0,ts_tsl=0,ts_sl=0,tl_pnl=0,ts_pnl=0;
+    let rows='';
+    for (const b of bins) {
+      const lt=b.Long.TP+b.Long.TSL+b.Long.SL, st=b.Short.TP+b.Short.TSL+b.Short.SL;
+      if (lt+st===0) continue;
+      tl_tp+=b.Long.TP;tl_tsl+=b.Long.TSL;tl_sl+=b.Long.SL;
+      ts_tp+=b.Short.TP;ts_tsl+=b.Short.TSL;ts_sl+=b.Short.SL;
+      tl_pnl+=b.Long.pnl; ts_pnl+=b.Short.pnl;
+      rows+=`<tr>
+        <td style="text-align:left">${b.lo.toFixed(1)}–${b.hi.toFixed(1)}</td>
+        <td>${colorCount(b.Long.TP,'c-green')}</td><td>${colorCount(b.Long.TSL,'c-yellow')}</td><td>${colorCount(b.Long.SL,'c-red')}</td>
+        <td>${fmtWr(b.Long.TP,lt)}</td><td>${colorPnl(b.Long.pnl)}</td>
+        <td class="c-muted" style="padding:0 .25rem;">|</td>
+        <td>${colorCount(b.Short.TP,'c-green')}</td><td>${colorCount(b.Short.TSL,'c-yellow')}</td><td>${colorCount(b.Short.SL,'c-red')}</td>
+        <td>${fmtWr(b.Short.TP,st)}</td><td>${colorPnl(b.Short.pnl)}</td>
+        <td>${lt+st}</td>
+      </tr>`;
+    }
+    const tlt=tl_tp+tl_tsl+tl_sl, tst=ts_tp+ts_tsl+ts_sl;
+    rows+=`<tr class="total-row">
+      <td style="text-align:left">GESAMT</td>
+      <td>${colorCount(tl_tp,'c-green')}</td><td>${colorCount(tl_tsl,'c-yellow')}</td><td>${colorCount(tl_sl,'c-red')}</td>
+      <td>${fmtWr(tl_tp,tlt)}</td><td>${colorPnl(tl_pnl)}</td>
+      <td class="c-muted" style="padding:0 .25rem;">|</td>
+      <td>${colorCount(ts_tp,'c-green')}</td><td>${colorCount(ts_tsl,'c-yellow')}</td><td>${colorCount(ts_sl,'c-red')}</td>
+      <td>${fmtWr(ts_tp,tst)}</td><td>${colorPnl(ts_pnl)}</td>
+      <td>${tlt+tst}</td>
+    </tr>`;
+    if (manualCount>0) {
+      rows+=`<tr class="manual-row">
+        <td style="text-align:left">Manuell*</td>
+        <td>—</td><td>—</td><td>—</td><td>—</td><td>${colorPnl(manualPnl.Long)}</td><td></td>
+        <td>—</td><td>—</td><td>—</td><td>—</td><td>${colorPnl(manualPnl.Short)}</td>
+        <td>${manualCount}</td>
+      </tr>`;
+    }
+    return `<div class="section-title" style="margin-top:1rem;">${esc(title)}</div>
+      <div class="table-wrap"><table class="stat-table">
+        <thead><tr>
+          <th style="text-align:left">High-Low</th>
+          <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR</th><th>L-P&amp;L</th><th></th>
+          <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR</th><th>S-P&amp;L</th>
+          <th>Gesamt</th>
+        </tr></thead><tbody>${rows}</tbody>
+      </table></div>`;
+  }
+
+  // Equal-width bins
+  const bw = (maxS-minS)/numBins;
+  const binsEq = Array.from({length:numBins}, (_,i)=>emptyBin(minS+i*bw, minS+(i+1)*bw));
+  for (const t of trades) {
+    const idx = Math.min(Math.floor((t.size-minS)/bw), numBins-1);
+    binsEq[idx][t.dir][t.outcome]++;
+    binsEq[idx][t.dir].pnl += t.pnl;
+  }
+
+  // Quantile bins
+  const sorted = [...trades].sort((a,b)=>a.size-b.size);
+  const n = sorted.length;
+  const bounds = Array.from({length:numBins+1}, (_,i)=>sorted[Math.min(Math.floor(i*n/numBins),n-1)].size);
+  bounds[bounds.length-1] += 1e-9;
+  const binsQ = Array.from({length:numBins}, (_,i)=>emptyBin(bounds[i],bounds[i+1]));
+  for (const t of trades) {
+    let lo=0,hi=numBins-1;
+    while(lo<hi){const mid=(lo+hi)>>1; if(t.size<bounds[mid+1])hi=mid; else lo=mid+1;}
+    binsQ[lo][t.dir][t.outcome]++;
+    binsQ[lo][t.dir].pnl += t.pnl;
+  }
+
+  const tpb = Math.round(n/numBins);
+  return renderBinTable(binsEq, `Kerzengröße (High-Low) – ${numBins} Bins (gleiche Breite)`)
+       + renderBinTable(binsQ, `Kerzengröße (High-Low) – ${numBins} Bins (Quantil, ~${tpb} Trades/Bin)`);
+}
+
+function renderOutput(result) {
+  const {stats,ruleStats,trailingBD,pnlVals,weekdayStats,startBalance,balanceCurve,equityCurve,
+         balanceEvts,equityEvts,candleTrades,manualCount,manualPnl,manualTrades} = result;
+
+  const [balDdAbs,balDdPct] = maxDrawdown(balanceCurve);
+  const [eqDdAbs,eqDdPct]  = maxDrawdown(equityCurve);
+  const daily = calcDailyDD(balanceEvts, equityEvts, startBalance);
+
+  const totalTrades = Object.values(stats).reduce((s,d)=>{
+    return s + d.Long.TP+d.Long.BE+d.Long.SL + d.Short.TP+d.Short.BE+d.Short.SL;
+  }, 0) + manualCount;
+
+  let out = `
+  <div class="output-section">
+    <div class="section-title">📊 Zusammenfassung</div>
+    <div class="drawdown-box">
+      <div class="dd-card">
+        <div class="dd-label">Gesamt-Trades</div>
+        <div class="dd-value c-blue">${totalTrades}</div>
+        <div class="dd-sub">inkl. ${manualCount} manuell</div>
+      </div>
+      <div class="dd-card">
+        <div class="dd-label">Max Drawdown Balance</div>
+        <div class="dd-value ${balDdAbs>0?'c-red':'c-green'}">${balDdAbs.toFixed(2)} USD</div>
+        <div class="dd-sub">${balDdPct.toFixed(2)}%</div>
+      </div>
+      <div class="dd-card">
+        <div class="dd-label">Max Drawdown Equity</div>
+        <div class="dd-value ${eqDdAbs>0?'c-red':'c-green'}">${eqDdAbs.toFixed(2)} USD</div>
+        <div class="dd-sub">${eqDdPct.toFixed(2)}%</div>
+      </div>
+      ${daily ? `<div class="dd-card">
+        <div class="dd-label">Daily DD (worst)</div>
+        <div class="dd-value c-yellow">${daily.worstUsed.toFixed(2)} USD</div>
+        <div class="dd-sub">${daily.worstPct.toFixed(2)}% am ${daily.worstDay}</div>
+      </div>` : ''}
+    </div>
+  </div>
+
+  <div class="output-section">
+    <div class="section-title">⏰ Ergebnisse nach Uhrzeit</div>
+    ${renderMainTable(stats, pnlVals)}
+  </div>
+
+  <div class="output-section">
+    <div class="section-title">📋 Ergebnisse nach Regel</div>
+    ${renderRuleTable(ruleStats, trailingBD, manualCount)}
+  </div>
+
+  <div class="output-section">
+    <div class="section-title">🎯 Trailing-Aufschlüsselung</div>
+    ${renderTrailingTable(trailingBD)}
+  </div>
+
+  <div class="output-section">
+    <div class="section-title">📅 Ergebnisse nach Wochentag (Engulfing-Zeit)</div>
+    ${renderWeekdayTable(weekdayStats)}
+  </div>
+
+  <div class="output-section">
+    <div class="section-title">🕯️ Kerzengröße-Analyse</div>
+    ${renderCandleBins(candleTrades, 25, manualCount, manualPnl, manualTrades)}
+  </div>
+
+  <div class="legend-box">
+    <strong>Legende:</strong>
+    TSL = Stop-Loss nach aktivem Trailing &nbsp;|&nbsp;
+    WR = nur echte TP &nbsp;|&nbsp;
+    WR+ = TP + Trail+ als Gewinn &nbsp;|&nbsp;
+    BE${BE_THRESHOLD} = TSL mit gesichertem Betrag innerhalb ±${BE_THRESHOLD} USD &nbsp;|&nbsp;
+    Trail+ = TSL außerhalb dieser Spanne
+    ${manualCount > 0 ? '<br>* Manuell = Zeitbasiertes Schließen (Evening/Weekend/Holiday-Close)' : ''}
+  </div>`;
+  return out;
+}
+
+// ─── Log file upload ──────────────────────────────────────────────────────────
+document.getElementById('logFile').addEventListener('change', e => {
+  if (e.target.files[0]) loadLog(e.target.files[0]);
+});
+(function() {
+  const el = document.getElementById('logDrop');
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragging'); });
+  el.addEventListener('dragleave', () => el.classList.remove('dragging'));
+  el.addEventListener('drop', e => {
+    e.preventDefault(); el.classList.remove('dragging');
+    if (e.dataTransfer.files[0]) loadLog(e.dataTransfer.files[0]);
+  });
+})();
+
+function loadLog(file) {
+  showMsg('ausMsg','','');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const zone = document.getElementById('logDrop');
+      zone.onclick = null;
+      zone.style.cssText = 'display:block;padding:0;border:none;min-height:unset;margin:0;';
+      zone.innerHTML = '<div class="file-loaded">'
+        + '<div style="font-size:1.25rem;">✅</div>'
+        + '<div style="flex:1;overflow:hidden;">'
+        + '<div class="file-loaded-name">' + esc(file.name) + '</div>'
+        + '<div class="file-loaded-meta">Wird ausgewertet…</div>'
+        + '</div>'
+        + '<button class="btn btn-secondary" style="font-size:.75rem;padding:.375rem .75rem;flex-shrink:0;"'
+        + ' onclick="clearLog()">✕</button>'
+        + '</div>';
+
+      const text = e.target.result;
+      const result = parseLog(text);
+      const totalTrades = Object.values(result.stats).reduce((s,d)=>{
+        return s + d.Long.TP+d.Long.BE+d.Long.SL + d.Short.TP+d.Short.BE+d.Short.SL;
+      }, 0) + result.manualCount;
+
+      if (totalTrades === 0 && result.startBalance === null) {
+        showMsg('ausMsg','Keine Trades oder Startguthaben in dieser Datei gefunden. Ist das die richtige Log-Datei?','error');
+        return;
+      }
+
+      zone.querySelector('.file-loaded-meta').textContent =
+        file.name + ' · ' + totalTrades + ' Trades gefunden';
+
+      const out = document.getElementById('ausOutput');
+      out.innerHTML = renderOutput(result);
+      out.style.display = '';
+      ausGoTo(2);
+      document.getElementById('aus-p2').scrollIntoView({ behavior:'smooth', block:'start' });
+    } catch(err) {
+      showMsg('ausMsg', 'Fehler beim Auswerten: ' + err.message, 'error');
+      console.error(err);
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function clearLog() {
+  document.getElementById('logFile').value = '';
+  const zone = document.getElementById('logDrop');
+  zone.style.cssText = '';
+  zone.className = 'drop-zone';
+  zone.innerHTML = '<div class="drop-zone-icon">📊</div>'
+    + '<div class="drop-zone-title">Log-Datei hierher ziehen</div>'
+    + '<div class="drop-zone-sub">oder klicken zum Auswählen</div>'
+    + '<div class="drop-zone-ext">.txt</div>';
+  zone.onclick = () => document.getElementById('logFile').click();
+  document.getElementById('ausOutput').innerHTML = '';
+  showMsg('ausMsg','','');
+}
+
+// ═══════════════════════════════════════════════════
+// TV SCRIPT
+// ═══════════════════════════════════════════════════
+function downloadTVScript() {
+  const SCRIPT_URL = 'https://raw.githubusercontent.com/Tobias1581/Oldman-TradingView-Sync/main/Oldman-TradingView-Sync.user.js';
+  const a = document.createElement('a');
+  a.href = SCRIPT_URL;
+  a.target = '_blank';
+  a.click();
+}
+</script>
+</body>
+</html>
+         
