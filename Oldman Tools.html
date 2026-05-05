@@ -602,7 +602,7 @@ body.dark .drop-zone:hover{background:var(--surface2);border-color:var(--blue);}
       </div>
       <div style="padding:0 1.25rem 1.25rem;">
         <div style="font-size:.9375rem;color:var(--text-muted);line-height:1.7;">
-          Nach dem Download öffnet Tampermonkey automatisch den Installations-Dialog.
+          Klicke nach dem Download in der Browser-Downloadleiste auf die Datei — Tampermonkey öffnet dann automatisch den Installations-Dialog.
           Klicke dort auf <strong style="color:var(--text);">„Installieren"</strong>.
         </div>
       </div>
@@ -3822,23 +3822,12 @@ function clearLog() {
 }
 
 function downloadTVScript() {
-  const content = const content = "// ==UserScript==
-// @name         Oldman TradingView Sync & Export
-// @version      3.1
-// @description  Alarm Sync + cTrader Export/Import
-// @author       Patrick Borger feat. Tobias Lorenz
-// @match        https://*.tradingview.com/*
-// @grant        none
-// ==/UserScript==
-
-(function() {
-    'use strict';
-  const blob = new Blob([content], { type: 'text/javascript' });
-  const url = URL.createObjectURL(blob);
-  window.open(url, '_blank');
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  const SCRIPT_URL = 'https://raw.githubusercontent.com/Tobias1581/Oldman-TradingView-Sync/main/Oldman-TradingView-Sync.user.js';
+  const a = document.createElement('a');
+  a.href = SCRIPT_URL;
+  a.target = '_blank';
+  a.click();
 }
-
 </script>
 </body>
 </html>
