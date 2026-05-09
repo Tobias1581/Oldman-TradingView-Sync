@@ -101,6 +101,7 @@ input[type="file"]{display:none;}
   font-weight:700;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
 .badge-updated{background:var(--green-bg);color:var(--green);}
 .badge-same{background:var(--surface2);color:var(--text-muted);}
+.badge-default{background:var(--yellow-bg);color:var(--yellow);}
 .badge-missing{background:var(--red-bg);color:var(--red);}
 
 /* ── CHECKBOX ── */
@@ -324,7 +325,7 @@ body.dark .drop-zone:hover{background:var(--surface2);border-color:var(--blue);}
   <div class="wiz-track" id="mig-track">
     <div class="wiz-step active" id="mig-s1" onclick="migClickStep(1)">
       <div class="wiz-num">1</div>
-      <div class="wiz-label">Datei laden</div>
+      <div class="wiz-label">Dateien laden</div>
     </div>
     <div class="wiz-line" id="mig-line1"></div>
     <div class="wiz-step" id="mig-s2" onclick="migClickStep(2)">
@@ -337,19 +338,30 @@ body.dark .drop-zone:hover{background:var(--surface2);border-color:var(--blue);}
   <div class="wiz-panel active" id="mig-p1">
     <div class="card">
       <div class="card-header">
-        <span class="card-title">📄 .cbotset Datei hochladen</span>
-        <code style="font-size:.75rem;background:var(--surface2);padding:.15rem .4rem;border-radius:3px;color:var(--blue);">.cbotset</code>
+        <span class="card-title">📄 Dateien hochladen</span>
       </div>
       <div style="padding:.75rem 1.25rem .25rem;font-size:.9375rem;color:var(--text-muted);line-height:1.6;">
-        Wandelt eine <code style="font-size:.8125rem;color:var(--blue);">.cbotset</code>-Datei in eine importfertige
-        <code style="font-size:.8125rem;color:var(--blue);">.optset</code>-Datei um — für den direkten Import im cTrader Optimierungstool.
+        Überträgt die Werte aus einer <code style="font-size:.8125rem;color:var(--blue);">.cbotset</code>-Datei in eine frisch aus cTrader exportierte <code style="font-size:.8125rem;color:var(--blue);">.optset</code>-Vorlage und setzt alle Optimize-Flags auf <code style="font-size:.8125rem;color:var(--blue);">false</code>. Bot-Version-unabhängig — beide Dateien werden automatisch zusammengeführt, sobald geladen.
       </div>
-      <input type="file" id="cbotFile" accept=".cbotset,.json">
-      <div id="cbotDrop" class="drop-zone" onclick="document.getElementById('cbotFile').click()">
-        <div class="drop-zone-icon">📂</div>
-        <div class="drop-zone-title">Datei hierher ziehen</div>
-        <div class="drop-zone-sub">oder klicken zum Auswählen</div>
-        <div class="drop-zone-ext">.cbotset</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;padding:0 1.25rem 1.25rem;">
+        <div>
+          <input type="file" id="optFile" accept=".optset,.json">
+          <div id="optDrop" class="drop-zone" onclick="document.getElementById('optFile').click()">
+            <div class="drop-zone-icon">📋</div>
+            <div class="drop-zone-title">.optset Vorlage</div>
+            <div class="drop-zone-sub">aus cTrader exportiert</div>
+            <div class="drop-zone-ext">.optset</div>
+          </div>
+        </div>
+        <div>
+          <input type="file" id="cbotFile" accept=".cbotset,.json">
+          <div id="cbotDrop" class="drop-zone" onclick="document.getElementById('cbotFile').click()">
+            <div class="drop-zone-icon">📂</div>
+            <div class="drop-zone-title">.cbotset Werte</div>
+            <div class="drop-zone-sub">vom Bot</div>
+            <div class="drop-zone-ext">.cbotset</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -373,10 +385,10 @@ body.dark .drop-zone:hover{background:var(--surface2);border-color:var(--blue);}
         <div class="result-stats">
           <div class="result-stat"><div class="dot" style="background:var(--green)"></div><strong id="cntUpdated">0</strong>&nbsp;aktualisiert</div>
           <div class="result-stat"><div class="dot" style="background:var(--text-muted)"></div><strong id="cntSame">0</strong>&nbsp;unverändert</div>
-          <div class="result-stat"><div class="dot" style="background:var(--red)"></div><strong id="cntMissing">0</strong>&nbsp;nicht gefunden</div>
+          <div class="result-stat"><div class="dot" style="background:var(--yellow)"></div><strong id="cntDefault">0</strong>&nbsp;Default übernommen</div>
         </div>
         <div style="display:flex;gap:.5rem;flex-shrink:0;">
-          <button class="btn btn-neue-datei" onclick="migGoTo(1)">← Neue Datei</button>
+          <button class="btn btn-neue-datei" onclick="migResetAll()">← Neue Datei</button>
           <button class="btn btn-primary" id="downloadBtn">⬇ Download .optset</button>
         </div>
       </div>
@@ -2763,6 +2775,7 @@ const OPTSET_TEMPLATE = {
 // MIGRATOR
 // ═══════════════════════════════════════════════════
 let cbotData = null;
+let optTemplateData = null;
 let lastMigResult = null;
 let migResultJson = null;
 
@@ -2784,32 +2797,36 @@ function convertValue(raw, paramType) {
 
 function migrate() {
   showMsg('migMsg', '', '');
+  if (!cbotData || !optTemplateData) return; // need both files
   const onlyChanged = isChecked('opt-changed');
   const cbotParams = cbotData.Parameters || {};
-  const newOpt = JSON.parse(JSON.stringify(OPTSET_TEMPLATE));
+  const newOpt = JSON.parse(JSON.stringify(optTemplateData));
 
-  // Override Chart from cbotset
-  const chart = cbotData.Chart || {};
-  if (!newOpt.Chart) newOpt.Chart = {};
-  if (chart.Symbol) newOpt.Chart.Symbol = chart.Symbol;
-  if (chart.Period) newOpt.Chart.Period = chart.Period;
-
-  let cntUpdated = 0, cntSame = 0, cntMissing = 0;
+  let cntUpdated = 0, cntSame = 0, cntDefault = 0;
   const rows = [];
 
-  newOpt.parameters.forEach(param => {
+  (newOpt.parameters || []).forEach(param => {
     const name = param.name;
-    if (!param.metadata) return; // skip non-migratable (String meta=null)
+    // TimeFrame parameter (GUID-named) and any other non-migratable entries: just disable optimize
+    if (param.parameterType === 'TimeFrame' || !param.metadata) {
+      param.optimize = false;
+      // sync timeframe value from cbotset if available
+      if (param.parameterType === 'TimeFrame' && cbotData.Chart && cbotData.Chart.Period) {
+        param.value = cbotData.Chart.Period;
+      }
+      return;
+    }
+
+    param.optimize = false;
 
     if (!(name in cbotParams)) {
-      cntMissing++;
-      rows.push({ name, old: param.value, nw: '—', status: 'missing' });
+      cntDefault++;
+      rows.push({ name, old: param.value, nw: param.value, status: 'default' });
       return;
     }
 
     const newVal = convertValue(cbotParams[name], param.parameterType);
     const oldVal = param.value;
-    param.optimize = false;
 
     if (newVal !== oldVal) {
       param.value = newVal;
@@ -2826,14 +2843,14 @@ function migrate() {
 
   document.getElementById('cntUpdated').textContent = cntUpdated;
   document.getElementById('cntSame').textContent = cntSame;
-  document.getElementById('cntMissing').textContent = cntMissing;
+  document.getElementById('cntDefault').textContent = cntDefault;
   renderDiff(rows, onlyChanged);
   migGoTo(2);
   document.getElementById('mig-p2').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderDiff(rows, onlyChanged) {
-  const filtered = onlyChanged ? rows.filter(r => r.status !== 'same') : rows;
+  const filtered = onlyChanged ? rows.filter(r => r.status !== 'same' && r.status !== 'default') : rows;
   const tbody = document.getElementById('diffBody');
   tbody.innerHTML = '';
   if (!filtered.length) {
@@ -2850,6 +2867,10 @@ function renderDiff(rows, onlyChanged) {
         break;
       case 'same':
         badge = '<span class="badge badge-same">SAME</span>';
+        newCell = `<td class="td-new-same">${esc(r.nw)}</td>`;
+        break;
+      case 'default':
+        badge = '<span class="badge badge-default">DEFAULT</span>';
         newCell = `<td class="td-new-same">${esc(r.nw)}</td>`;
         break;
       default:
@@ -2873,16 +2894,40 @@ function loadCbot(file) {
       const sym = chart.Symbol || '';
       const per = chart.Period ? chart.Period.toUpperCase() : '';
       const meta = sym ? `${sym} ${per} · ${pc} Parameter` : `${pc} Parameter`;
-      showLoadedZone('cbotDrop', 'cbotFile', file.name, meta);
-      migrate();
+      showLoadedZone('cbotDrop', 'cbotFile', file.name, meta, 'clearCbot');
+      tryMigrate();
     } catch(err) {
-      showMsg('migMsg', 'Ungültige Datei: ' + err.message, 'error');
+      showMsg('migMsg', 'Ungültige .cbotset: ' + err.message, 'error');
     }
   };
   reader.readAsText(file);
 }
 
-function showLoadedZone(zoneId, inputId, name, meta) {
+function loadOpt(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      // strip BOM if present
+      const txt = e.target.result.replace(/^﻿/, '');
+      const data = JSON.parse(txt);
+      if (!Array.isArray(data.parameters)) throw new Error('Keine "parameters"-Liste gefunden');
+      optTemplateData = data;
+      const pc = data.parameters.length;
+      const meta = `${pc} Parameter`;
+      showLoadedZone('optDrop', 'optFile', file.name, meta, 'clearOpt');
+      tryMigrate();
+    } catch(err) {
+      showMsg('migMsg', 'Ungültige .optset: ' + err.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function tryMigrate() {
+  if (cbotData && optTemplateData) migrate();
+}
+
+function showLoadedZone(zoneId, inputId, name, meta, clearFn) {
   const zone = document.getElementById(zoneId);
   zone.onclick = null;
   zone.style.cssText = 'display:block;padding:0;border:none;min-height:unset;margin:0;';
@@ -2893,36 +2938,57 @@ function showLoadedZone(zoneId, inputId, name, meta) {
       <div class="file-loaded-meta">${esc(meta)}</div>
     </div>
     <button class="btn btn-secondary" style="font-size:.75rem;padding:.375rem .75rem;flex-shrink:0;"
-            onclick="clearCbot()">✕</button>
+            onclick="${clearFn}()">✕</button>
   </div>`;
+}
+
+function resetDropZone(zoneId, inputId, icon, title, sub, ext, loaderName) {
+  document.getElementById(inputId).value = '';
+  const zone = document.getElementById(zoneId);
+  zone.style.cssText = '';
+  zone.className = 'drop-zone';
+  zone.innerHTML = `<div class="drop-zone-icon">${icon}</div>
+    <div class="drop-zone-title">${esc(title)}</div>
+    <div class="drop-zone-sub">${esc(sub)}</div>
+    <div class="drop-zone-ext">${esc(ext)}</div>`;
+  zone.onclick = () => document.getElementById(inputId).click();
 }
 
 function clearCbot() {
   cbotData = null; lastMigResult = null; migResultJson = null;
-  document.getElementById('cbotFile').value = '';
-  const zone = document.getElementById('cbotDrop');
-  zone.style.cssText = '';
-  zone.className = 'drop-zone';
-  zone.innerHTML = `<div class="drop-zone-icon">📂</div>
-    <div class="drop-zone-title">Datei hierher ziehen</div>
-    <div class="drop-zone-sub">oder klicken zum Auswählen</div>
-    <div class="drop-zone-ext">.cbotset</div>`;
-  zone.onclick = () => document.getElementById('cbotFile').click();
+  resetDropZone('cbotDrop', 'cbotFile', '📂', '.cbotset Werte', 'vom Bot', '.cbotset');
   showMsg('migMsg', '', '');
+}
+
+function clearOpt() {
+  optTemplateData = null; lastMigResult = null; migResultJson = null;
+  resetDropZone('optDrop', 'optFile', '📋', '.optset Vorlage', 'aus cTrader exportiert', '.optset');
+  showMsg('migMsg', '', '');
+}
+
+function migResetAll() {
+  clearCbot();
+  clearOpt();
+  migGoTo(1);
 }
 
 document.getElementById('cbotFile').addEventListener('change', e => {
   if (e.target.files[0]) loadCbot(e.target.files[0]);
 });
+document.getElementById('optFile').addEventListener('change', e => {
+  if (e.target.files[0]) loadOpt(e.target.files[0]);
+});
 
 // Drag & drop
 (function() {
-  const el = document.getElementById('cbotDrop');
-  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragging'); });
-  el.addEventListener('dragleave', () => el.classList.remove('dragging'));
-  el.addEventListener('drop', e => {
-    e.preventDefault(); el.classList.remove('dragging');
-    if (e.dataTransfer.files[0]) loadCbot(e.dataTransfer.files[0]);
+  [['cbotDrop', loadCbot], ['optDrop', loadOpt]].forEach(([id, loader]) => {
+    const el = document.getElementById(id);
+    el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('dragging'); });
+    el.addEventListener('dragleave', () => el.classList.remove('dragging'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); el.classList.remove('dragging');
+      if (e.dataTransfer.files[0]) loader(e.dataTransfer.files[0]);
+    });
   });
 })();
 
