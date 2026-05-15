@@ -925,8 +925,8 @@
     //  CTRADER IMPORT - REVERSE MAPPINGS
     // ============================================================
     function reverseTradeDirection(val) {
-        if (val === 0) return "Long Only";
-        if (val === 1) return "Short Only";
+        if (val === 0) return "Long";
+        if (val === 1) return "Short";
         return "Beide";
     }
 
