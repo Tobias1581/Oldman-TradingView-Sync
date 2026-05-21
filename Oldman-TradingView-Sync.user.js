@@ -133,14 +133,7 @@
             "Teilungsfaktor 1", "F2", "F3",
             "Schwelle 1 (Pts)", "S2", "S3",
 
-            // 03 - Trailing SL
-            "SL Nachziehen Long ?", "SL Nachziehen Short ?",
-            "1. Trigger (R)", "1. Schritt (R)",
-            "2. Trigger (R)", "2. Schritt (R)",
-            "3. Trigger (R)", "3. Schritt (R)",
-            "4. Trigger (R)", "4. Schritt (R)",
-
-            // 04 - Session
+            // 03 - Session
             "Session-Fenster",
             "Ausschlusszeiten Long", "Zeit Short",
             "Ausschlusstage Long", "Tage Short",
