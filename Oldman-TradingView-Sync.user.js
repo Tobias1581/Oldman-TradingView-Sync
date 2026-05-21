@@ -116,10 +116,6 @@
         const alarmSettings = {};
 
         const fieldsToExport = [
-            // 00 - Grundeinstellungen
-            "Forex-Währungspaar ?",
-            "Volumen Modus ?",
-
             // 01 - Basis
             "Oldman Gold Long ?",
             "Oldman Gold Short ?",
@@ -128,38 +124,42 @@
             "MA-Toleranz (Pts)",
             "Hammerdocht (%)",
 
-            // 02 - CRV, SL
+            // 02 - Trade & CRV / SL
             "Trade-Richtung",
             "CRV Long", "CRV Short",
             "Entry-Offset (Pts)", "SL-Offset (Pts)",
             "SL Körper Long ?", "SL Körper Short ?",
-            "SL Modus",
             "Kerzenteilung Long ?", "Kerzenteilung Short ?",
             "Teilungsfaktor 1", "F2", "F3",
             "Schwelle 1 (Pts)", "S2", "S3",
-            "Schwelle 1 (%)", "S2%", "S3%",
-            "Schwellen in % ?",
-            "ATR-Multiplikator", "ATR-Periode",
 
-            // 03 - Session
+            // 03 - Trailing SL
+            "SL Nachziehen Long ?", "SL Nachziehen Short ?",
+            "1. Trigger (R)", "1. Schritt (R)",
+            "2. Trigger (R)", "2. Schritt (R)",
+            "3. Trigger (R)", "3. Schritt (R)",
+            "4. Trigger (R)", "4. Schritt (R)",
+
+            // 04 - Session
             "Session-Fenster",
             "Ausschlusszeiten Long", "Zeit Short",
             "Ausschlusstage Long", "Tage Short",
 
-            // 04 - Kerzenform
+            // 05 - Kerzenform
             "Kerze min (Pts)", "Kerze max (Pts)",
             "Trend-Docht (%)", "Gegen-Docht (%)",
             "Körper min (%)", "Engulfing Growth (%)",
 
-            // 05 - Trend/Momentum
-            "Trendfilter Long", "Trendfilter Short",
-            "MA1", "MA2", "MA3", "MA4",
-            "Sortierfilter: Long 20 > 50 > 200", "Short 200 > 50 > 20",
-            "Sortierfilter: Long 10 > 20 > 50", "Short 50 > 20 > 10",
-            "Blockfilter Long Mode", "MA Fast Long", "MA Slow Long",
-            "Blockfilter Short Mode", "MA Fast Short", "MA Slow Short",
+            // 06 - Trendfilter
+            "Trendfilter Long ?", "Trendfilter Short ?",
+            "MA Trend Long 1", "MA Trend Long 2", "MA Trend Long 3",
+            "MA Trend Short 1", "MA Trend Short 2", "MA Trend Short 3",
 
-            // 06 - Indikatoren
+            // 07 - Blockfilter
+            "Blockfilter Long Mode", "MA Block Fast Long", "MA Block Slow Long",
+            "Blockfilter Short Mode", "MA Block Fast Short", "MA Block Slow Short",
+
+            // 08 - Indikatoren
             "RSI-Filter Long ?", "RSI-Filter Short ?", "RSI-Länge",
             "RSI Long: min", "RSI Long: max",
             "RSI Short: min", "RSI Short: max",
@@ -535,9 +535,6 @@
             SLOffsetLong: 0.0,
             SLOffsetShort: 0.0,
 
-            SLMode: 0,
-            AtrPeriod: 14,
-            AtrMultiplier: 1.0,
             SLUseBodyOpenLong: false,
             SLUseBodyOpenShort: false,
 
@@ -566,10 +563,6 @@
             Step3SLRLong: 2.0,
             Step4TriggerRLong: 4.0,
             Step4SLRLong: 3.0,
-            Step5TriggerRLong: 5.0,
-            Step5SLRLong: 4.0,
-            Step6TriggerRLong: 6.0,
-            Step6SLRLong: 5.0,
 
             TrailingEnabledShort: false,
             Step1TriggerRShort: 1.0,
@@ -580,14 +573,9 @@
             Step3SLRShort: 2.0,
             Step4TriggerRShort: 4.0,
             Step4SLRShort: 3.0,
-            Step5TriggerRShort: 5.0,
-            Step5SLRShort: 4.0,
-            Step6TriggerRShort: 6.0,
-            Step6SLRShort: 5.0,
 
             // --- Session ---
-            SessionFilterEnabled: true,
-            SessionWindowStr: "05:00-20:00",
+            SessionWindowStr: "05:00-21:00",
             FridayNoEntryAfterStr: "",
             ExcludeLongStr: "",
             ExcludeShortStr: "",
@@ -613,17 +601,15 @@
             MinEngulfingGrowthPercentShort: 0.0,
 
             // --- Trend/MA-Filter ---
-            GlobalMAType: 1,
+            GlobalMAType: 0,
             UseMAFilterL: false,
-            MA1Len: 50,
-            MA2Len: 200,
+            MA1LenLong: 50,
+            MA2LenLong: 200,
+            MA3LenLong: 0,
             UseMAFilterS: false,
-            MA3Len: 200,
-            MA4Len: 50,
-            UseMASort2050200L: false,
-            UseMASort2050200S: false,
-            UseMASort102050L: false,
-            UseMASort102050S: false,
+            MA1LenShort: 200,
+            MA2LenShort: 50,
+            MA3LenShort: 0,
 
             BlockModeL: 0,
             BlockMAFastL: 9,
@@ -684,9 +670,12 @@
             if (pairBuf.right !== null) p.Rule4MABufferShort = pairBuf.right;  // ← v3.1
         }
 
-        // Hammerdocht
-        p.MaxShortWickPercentLong  = num(tv["Hammerdocht (%)"], p.MaxShortWickPercentLong);
-        p.MaxShortWickPercentShort = num(tv["Hammerdocht (%)"], p.MaxShortWickPercentShort);
+        // Hammerdocht (Pair-String "L/S")
+        {
+            const pairHammer = splitPair(tv["Hammerdocht (%)"]);
+            if (pairHammer.left  !== null) p.MaxShortWickPercentLong  = pairHammer.left;
+            if (pairHammer.right !== null) p.MaxShortWickPercentShort = pairHammer.right;
+        }
 
         // TradeDirection
         if (tv["Trade-Richtung"]) {
@@ -711,17 +700,9 @@
             if (pairSl.right !== null) p.SLOffsetShort = pairSl.right;
         }
 
-        // SL Modus
-        if (tv["SL Modus"]) {
-            p.SLMode = mapSlMode(tv["SL Modus"].trim());
-        }
-
         // Kerzenteilung = UseCandleSplit
         p.UseCandleSplitLong  = bool(tv["Kerzenteilung Long ?"]);
         p.UseCandleSplitShort = bool(tv["Kerzenteilung Short ?"]);
-
-        p.AtrPeriod     = num(tv["ATR-Periode"],      p.AtrPeriod);
-        p.AtrMultiplier = num(tv["ATR-Multiplikator"], p.AtrMultiplier);
 
         p.SLUseBodyOpenLong  = bool(tv["SL Körper Long ?"]);
         p.SLUseBodyOpenShort = bool(tv["SL Körper Short ?"]);
@@ -765,7 +746,7 @@
             if (stepPair.right !== null) p[`Step${idx}SLRShort`]      = stepPair.right;
         }
 
-        for (let i = 1; i <= 6; i++) mapStep(i);
+        for (let i = 1; i <= 4; i++) mapStep(i);
 
         // Session
         if (!tv["Session-Fenster"] || tv["Session-Fenster"].trim() === "") {
@@ -827,27 +808,24 @@
 
         // EMA/MA-Filter
         p.GlobalMAType = tv["Gleitender Durchschnitt MA-Mode"] === "SMA" ? 1 : 0;
-        p.UseMAFilterL = bool(tv["Trendfilter Long"]);   // ← v3.1
-        p.UseMAFilterS = bool(tv["Trendfilter Short"]);  // ← v3.1
+        p.UseMAFilterL = bool(tv["Trendfilter Long ?"]);
+        p.UseMAFilterS = bool(tv["Trendfilter Short ?"]);
 
-        p.MA1Len = num(tv["MA1"], p.MA1Len);
-        p.MA2Len = num(tv["MA2"], p.MA2Len);
-        p.MA3Len = num(tv["MA3"], p.MA3Len);
-        p.MA4Len = num(tv["MA4"], p.MA4Len);
-
-        p.UseMASort2050200L = bool(tv["Sortierfilter: Long 20 > 50 > 200"]);  // ← v3.1
-        p.UseMASort2050200S = bool(tv["Short 200 > 50 > 20"]);              // ← v3.1
-        p.UseMASort102050L  = bool(tv["Sortierfilter: Long 10 > 20 > 50"]); // ← v3.1
-        p.UseMASort102050S  = bool(tv["Short 50 > 20 > 10"]);               // ← v3.1
+        p.MA1LenLong  = num(tv["MA Trend Long 1"],  p.MA1LenLong);
+        p.MA2LenLong  = num(tv["MA Trend Long 2"],  p.MA2LenLong);
+        p.MA3LenLong  = num(tv["MA Trend Long 3"],  p.MA3LenLong);
+        p.MA1LenShort = num(tv["MA Trend Short 1"], p.MA1LenShort);
+        p.MA2LenShort = num(tv["MA Trend Short 2"], p.MA2LenShort);
+        p.MA3LenShort = num(tv["MA Trend Short 3"], p.MA3LenShort);
 
         // Blockfilter
         p.BlockModeL   = mapBlockFilterMode(tv["Blockfilter Long Mode"]);
-        p.BlockMAFastL = num(tv["MA Fast Long"],  p.BlockMAFastL);
-        p.BlockMASlowL = num(tv["MA Slow Long"],  p.BlockMASlowL);
+        p.BlockMAFastL = num(tv["MA Block Fast Long"],  p.BlockMAFastL);
+        p.BlockMASlowL = num(tv["MA Block Slow Long"],  p.BlockMASlowL);
 
         p.BlockModeS   = mapBlockFilterMode(tv["Blockfilter Short Mode"]);
-        p.BlockMAFastS = num(tv["MA Fast Short"], p.BlockMAFastS);
-        p.BlockMASlowS = num(tv["MA Slow Short"], p.BlockMASlowS);
+        p.BlockMAFastS = num(tv["MA Block Fast Short"], p.BlockMAFastS);
+        p.BlockMASlowS = num(tv["MA Block Slow Short"], p.BlockMASlowS);
 
         // RSI
         p.UseRSIFilterL = bool(tv["RSI-Filter Long ?"]);
@@ -981,8 +959,8 @@
         // MA Toleranz
         tv["MA-Toleranz (Pts)"] = makePair(config.Rule4MABufferLong, config.Rule4MABufferShort); // ← v3.1
 
-        // Hammerdocht
-        tv["Hammerdocht (%)"] = config.MaxShortWickPercentLong;
+        // Hammerdocht (Pair-String "L/S")
+        tv["Hammerdocht (%)"] = makePair(config.MaxShortWickPercentLong, config.MaxShortWickPercentShort);
 
         // Trade-Richtung
         tv["Trade-Richtung"] = reverseTradeDirection(config.TradeDirection);
@@ -995,15 +973,9 @@
         tv["Entry-Offset (Pts)"] = makePair(config.EntryOffsetLong, config.EntryOffsetShort);
         tv["SL-Offset (Pts)"]    = makePair(config.SLOffsetLong,    config.SLOffsetShort);
 
-        // SL Modus
-        tv["SL Modus"] = reverseSlMode(config.SLMode);
-
         // Kerzenteilung = UseCandleSplit
         tv["Kerzenteilung Long ?"]  = config.UseCandleSplitLong;
         tv["Kerzenteilung Short ?"] = config.UseCandleSplitShort;
-
-        tv["ATR-Periode"]      = config.AtrPeriod;
-        tv["ATR-Multiplikator"] = config.AtrMultiplier;
 
         tv["SL Körper Long ?"]  = config.SLUseBodyOpenLong;
         tv["SL Körper Short ?"] = config.SLUseBodyOpenShort;
@@ -1020,7 +992,7 @@
         tv["SL Nachziehen Long ?"]  = config.TrailingEnabledLong;
         tv["SL Nachziehen Short ?"] = config.TrailingEnabledShort;
 
-        for (let i = 1; i <= 6; i++) {
+        for (let i = 1; i <= 4; i++) {
             tv[`${i}. Trigger (R)`] = makePair(config[`Step${i}TriggerRLong`],  config[`Step${i}TriggerRShort`]);
             tv[`${i}. Schritt (R)`] = makePair(config[`Step${i}SLRLong`],       config[`Step${i}SLRShort`]);
         }
@@ -1057,27 +1029,24 @@
 
         // EMA/MA-Filter
         tv["Gleitender Durchschnitt MA-Mode"] = config.GlobalMAType === 1 ? "SMA" : "EMA";
-        tv["Trendfilter Long"]  = config.UseMAFilterL;   // ← v3.1
-        tv["Trendfilter Short"] = config.UseMAFilterS;   // ← v3.1
+        tv["Trendfilter Long ?"]  = config.UseMAFilterL;
+        tv["Trendfilter Short ?"] = config.UseMAFilterS;
 
-        tv["MA1"] = String(config.MA1Len);
-        tv["MA2"] = String(config.MA2Len);
-        tv["MA3"] = String(config.MA3Len);
-        tv["MA4"] = String(config.MA4Len);
-
-        tv["Sortierfilter: Long 20 > 50 > 200"] = config.UseMASort2050200L;  // ← v3.1
-        tv["Short 200 > 50 > 20"]              = config.UseMASort2050200S;  // ← v3.1
-        tv["Sortierfilter: Long 10 > 20 > 50"] = config.UseMASort102050L;   // ← v3.1
-        tv["Short 50 > 20 > 10"]               = config.UseMASort102050S;   // ← v3.1
+        tv["MA Trend Long 1"]  = String(config.MA1LenLong);
+        tv["MA Trend Long 2"]  = String(config.MA2LenLong);
+        tv["MA Trend Long 3"]  = String(config.MA3LenLong);
+        tv["MA Trend Short 1"] = String(config.MA1LenShort);
+        tv["MA Trend Short 2"] = String(config.MA2LenShort);
+        tv["MA Trend Short 3"] = String(config.MA3LenShort);
 
         // Blockfilter
-        tv["Blockfilter Long Mode"]  = reverseBlockFilterModeLong(config.BlockModeL);
-        tv["MA Fast Long"]          = String(config.BlockMAFastL);
-        tv["MA Slow Long"]          = String(config.BlockMASlowL);
+        tv["Blockfilter Long Mode"]   = reverseBlockFilterModeLong(config.BlockModeL);
+        tv["MA Block Fast Long"]      = String(config.BlockMAFastL);
+        tv["MA Block Slow Long"]      = String(config.BlockMASlowL);
 
-        tv["Blockfilter Short Mode"] = reverseBlockFilterModeShort(config.BlockModeS);
-        tv["MA Fast Short"]          = String(config.BlockMAFastS);
-        tv["MA Slow Short"]          = String(config.BlockMASlowS);
+        tv["Blockfilter Short Mode"]  = reverseBlockFilterModeShort(config.BlockModeS);
+        tv["MA Block Fast Short"]     = String(config.BlockMAFastS);
+        tv["MA Block Slow Short"]     = String(config.BlockMASlowS);
 
         // RSI
         tv["RSI-Filter Long ?"]  = config.UseRSIFilterL;
