@@ -3046,8 +3046,7 @@ function sortRuleKey(k) {
   return m ? +m[1] : 999;
 }
 
-function initDir() { return { TP:0, BE:0, SL:0 }; }
-function initTrail() { return { NearBE:0, TrailProfit:0 }; }
+function initDir() { return { TP:0, BE:0, SL:0, pnl:0 }; }
 function initCandleDir() { return { TP:0, TSL:0, SL:0, pnl:0 }; }
 
 function getOrCreate(obj, key, factory) {
@@ -3115,14 +3114,14 @@ function calcDailyDD(balanceEvts, equityEvts, initBal) {
 function fmt2(n) { return String(n).padStart(2,'0'); }
 function fmtUsd(v) { return (v >= 0 ? '+' : '') + v.toFixed(2); }
 function fmtPct(v) { return v.toFixed(2) + '%'; }
-function fmtWr(tp, total) { return total > 0 ? (tp/total*100).toFixed(1)+'%' : '-'; }
+function fmtWr(tp, sl)       { const d=tp+sl;     return d>0?(tp/d*100).toFixed(1)+'%':'-'; }
+function fmtNlr(tp, tsl, sl) { const d=tp+tsl+sl; return d>0?((tp+tsl)/d*100).toFixed(1)+'%':'-'; }
 
 function parseLog(text) {
   const lines = text.split(/\r?\n/);
 
   const stats = {}; // stats[time][dir]['TP'|'BE'|'SL']
   const ruleStats = {};
-  const trailingBD = {};
   const pnlVals = { Long:{positive:[],negative:[]}, Short:{positive:[],negative:[]} };
 
   let curCandleTime = null, curCandleDate = null, curDir = null, curSetup = null;
@@ -3297,7 +3296,6 @@ function parseLog(text) {
         const ct = posToCandle[pid], dir = posToDir[pid], rk = posToRule[pid];
         if (!stats[ct]) stats[ct] = { Long:initDir(), Short:initDir() };
         if (!ruleStats[rk||'?']) ruleStats[rk||'?'] = { Long:initDir(), Short:initDir() };
-        if (!trailingBD[rk||'?']) trailingBD[rk||'?'] = { Long:initTrail(), Short:initTrail() };
 
         if (grund === 'Take-Profit') {
           stats[ct][dir].TP++;
@@ -3306,12 +3304,7 @@ function parseLog(text) {
         } else { // Stop-Loss
           if (posTrailing[pid]) {
             stats[ct][dir].BE++;
-            if (rk) {
-              ruleStats[rk][dir].BE++;
-              const sec = posToSecured[pid] || 0;
-              if (Math.abs(sec) <= BE_THRESHOLD) trailingBD[rk][dir].NearBE++;
-              else trailingBD[rk][dir].TrailProfit++;
-            }
+            if (rk) ruleStats[rk][dir].BE++;
             candleOutcome[pid] = 'TSL';
           } else {
             stats[ct][dir].SL++;
@@ -3325,7 +3318,7 @@ function parseLog(text) {
           const [wy,wm,wd] = wdDate.split('-').map(Number);
           const wdIdx = new Date(wy,wm-1,wd).getDay();
           const wdName = ['So','Mo','Di','Mi','Do','Fr','Sa'][wdIdx];
-          if (!weekdayStats[wdName]) weekdayStats[wdName] = {Long:{TP:0,BE:0,SL:0},Short:{TP:0,BE:0,SL:0}};
+          if (!weekdayStats[wdName]) weekdayStats[wdName] = { Long:initDir(), Short:initDir() };
           const outcome2 = candleOutcome[pid];
           if (outcome2 === 'TP') weekdayStats[wdName][dir].TP++;
           else if (outcome2 === 'TSL') weekdayStats[wdName][dir].BE++;
@@ -3345,6 +3338,14 @@ function parseLog(text) {
       if (dir && outcome !== 'MANUELL') {
         if (pnlVal >= 0) pnlVals[dir].positive.push([pnlVal, ct]);
         else pnlVals[dir].negative.push([pnlVal, ct]);
+        const rk2 = posToRule[curClosePosId];
+        if (rk2 && ruleStats[rk2]) ruleStats[rk2][dir].pnl += pnlVal;
+        const wdDate2 = posToDate[curClosePosId];
+        if (wdDate2) {
+          const [wy2,wm2,wd2] = wdDate2.split('-').map(Number);
+          const wdName2 = ['So','Mo','Di','Mi','Do','Fr','Sa'][new Date(wy2,wm2-1,wd2).getDay()];
+          if (weekdayStats[wdName2]) weekdayStats[wdName2][dir].pnl += pnlVal;
+        }
       }
 
       // Unrealized equity via close prices
@@ -3376,7 +3377,7 @@ function parseLog(text) {
     }
   }
 
-  return { stats, ruleStats, trailingBD, pnlVals, weekdayStats, startBalance,
+  return { stats, ruleStats, pnlVals, weekdayStats, startBalance,
     balanceCurve, equityCurve, balanceEvts, equityEvts,
     candleTrades, candleOutcome, manualCount, manualPnl, manualTrades };
 }
@@ -3412,10 +3413,10 @@ function renderMainTable(stats, pnlVals) {
     rows += `<tr>
       <td style="text-align:left">${esc(tk)}</td>
       <td>${colorCount(ltp,'c-green')}</td><td>${colorCount(lbe,'c-yellow')}</td><td>${colorCount(lsl,'c-red')}</td>
-      <td>${fmtWr(ltp,lt)}</td><td>${colorPnl(lnet)}</td>
+      <td>${fmtWr(ltp,lsl)}</td><td>${fmtNlr(ltp,lbe,lsl)}</td><td>${colorPnl(lnet)}</td>
       <td class="c-muted" style="padding:0 .5rem;">|</td>
       <td>${colorCount(stp,'c-green')}</td><td>${colorCount(sbe,'c-yellow')}</td><td>${colorCount(ssl,'c-red')}</td>
-      <td>${fmtWr(stp,st)}</td><td>${colorPnl(snet)}</td>
+      <td>${fmtWr(stp,ssl)}</td><td>${fmtNlr(stp,sbe,ssl)}</td><td>${colorPnl(snet)}</td>
       <td>${lt+st||''}</td>
     </tr>`;
   }
@@ -3423,43 +3424,42 @@ function renderMainTable(stats, pnlVals) {
   rows += `<tr class="total-row">
     <td style="text-align:left">GESAMT</td>
     <td>${colorCount(tl_tp,'c-green')}</td><td>${colorCount(tl_be,'c-yellow')}</td><td>${colorCount(tl_sl,'c-red')}</td>
-    <td>${fmtWr(tl_tp,tlt)}</td><td>${colorPnl(tl_pnl)}</td>
+    <td>${fmtWr(tl_tp,tl_sl)}</td><td>${fmtNlr(tl_tp,tl_be,tl_sl)}</td><td>${colorPnl(tl_pnl)}</td>
     <td class="c-muted" style="padding:0 .5rem;">|</td>
     <td>${colorCount(ts_tp,'c-green')}</td><td>${colorCount(ts_be,'c-yellow')}</td><td>${colorCount(ts_sl,'c-red')}</td>
-    <td>${fmtWr(ts_tp,tst)}</td><td>${colorPnl(ts_pnl)}</td>
+    <td>${fmtWr(ts_tp,ts_sl)}</td><td>${fmtNlr(ts_tp,ts_be,ts_sl)}</td><td>${colorPnl(ts_pnl)}</td>
     <td>${tlt+tst}</td>
   </tr>`;
   return `<div class="table-wrap"><table class="stat-table">
     <thead><tr>
       <th style="text-align:left">Uhrzeit</th>
-      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR</th><th>L-P&amp;L</th>
+      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR%</th><th>L-NLR%</th><th>L-P&amp;L</th>
       <th></th>
-      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR</th><th>S-P&amp;L</th>
+      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR%</th><th>S-NLR%</th><th>S-P&amp;L</th>
       <th>Gesamt</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function renderRuleTable(ruleStats, trailingBD, manualCount) {
+function renderRuleTable(ruleStats, manualCount) {
   const allRules = ['Regel 1','Regel 2','Regel 3','Regel 4'];
   const extra = Object.keys(ruleStats).filter(k=>!allRules.includes(k)).sort((a,b)=>sortRuleKey(a)-sortRuleKey(b));
   const keys = [...allRules, ...extra];
 
-  let tl_tp=0,tl_be=0,tl_sl=0,ts_tp=0,ts_be=0,ts_sl=0,tl_tr=0,ts_tr=0;
+  let tl_tp=0,tl_be=0,tl_sl=0,ts_tp=0,ts_be=0,ts_sl=0,tl_pnl=0,ts_pnl=0;
   let rows = '';
   for (const rk of keys) {
     const sl=(ruleStats[rk]||{}).Long||initDir(), ss=(ruleStats[rk]||{}).Short||initDir();
-    const tl=(trailingBD[rk]||{}).Long||initTrail(), ts=(trailingBD[rk]||{}).Short||initTrail();
-    const {TP:ltp,BE:lbe,SL:lsl}=sl,{TP:stp,BE:sbe,SL:ssl}=ss;
-    const ltr=tl.TrailProfit, str=ts.TrailProfit;
-    tl_tp+=ltp;tl_be+=lbe;tl_sl+=lsl;ts_tp+=stp;ts_be+=sbe;ts_sl+=ssl;tl_tr+=ltr;ts_tr+=str;
+    const {TP:ltp,BE:lbe,SL:lsl,pnl:lpnl}=sl, {TP:stp,BE:sbe,SL:ssl,pnl:spnl}=ss;
+    tl_tp+=ltp;tl_be+=lbe;tl_sl+=lsl;ts_tp+=stp;ts_be+=sbe;ts_sl+=ssl;
+    tl_pnl+=lpnl; ts_pnl+=spnl;
     const lt=ltp+lbe+lsl, st=stp+sbe+ssl;
     rows += `<tr>
       <td style="text-align:left">${esc(rk)}</td>
       <td>${colorCount(ltp,'c-green')}</td><td>${colorCount(lbe,'c-yellow')}</td><td>${colorCount(lsl,'c-red')}</td>
-      <td>${fmtWr(ltp,lt)}</td><td>${fmtWr(ltp+ltr,lt)}</td>
+      <td>${fmtWr(ltp,lsl)}</td><td>${fmtNlr(ltp,lbe,lsl)}</td><td>${colorPnl(lpnl)}</td>
       <td class="c-muted" style="padding:0 .5rem;">|</td>
       <td>${colorCount(stp,'c-green')}</td><td>${colorCount(sbe,'c-yellow')}</td><td>${colorCount(ssl,'c-red')}</td>
-      <td>${fmtWr(stp,st)}</td><td>${fmtWr(stp+str,st)}</td>
+      <td>${fmtWr(stp,ssl)}</td><td>${fmtNlr(stp,sbe,ssl)}</td><td>${colorPnl(spnl)}</td>
       <td>${lt+st||''}</td>
     </tr>`;
   }
@@ -3467,62 +3467,28 @@ function renderRuleTable(ruleStats, trailingBD, manualCount) {
   rows += `<tr class="total-row">
     <td style="text-align:left">GESAMT</td>
     <td>${colorCount(tl_tp,'c-green')}</td><td>${colorCount(tl_be,'c-yellow')}</td><td>${colorCount(tl_sl,'c-red')}</td>
-    <td>${fmtWr(tl_tp,tlt)}</td><td>${fmtWr(tl_tp+tl_tr,tlt)}</td>
+    <td>${fmtWr(tl_tp,tl_sl)}</td><td>${fmtNlr(tl_tp,tl_be,tl_sl)}</td><td>${colorPnl(tl_pnl)}</td>
     <td class="c-muted" style="padding:0 .5rem;">|</td>
     <td>${colorCount(ts_tp,'c-green')}</td><td>${colorCount(ts_be,'c-yellow')}</td><td>${colorCount(ts_sl,'c-red')}</td>
-    <td>${fmtWr(ts_tp,tst)}</td><td>${fmtWr(ts_tp+ts_tr,tst)}</td>
+    <td>${fmtWr(ts_tp,ts_sl)}</td><td>${fmtNlr(ts_tp,ts_be,ts_sl)}</td><td>${colorPnl(ts_pnl)}</td>
     <td>${tlt+tst}</td>
   </tr>`;
   if (manualCount > 0) {
     rows += `<tr class="manual-row"><td style="text-align:left">Manuell*</td>
-      <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td></td>
-      <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
+      <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td></td>
+      <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>
       <td>${manualCount}</td></tr>`;
   }
   return `<div class="table-wrap"><table class="stat-table">
     <thead><tr>
       <th style="text-align:left">Regel</th>
-      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR</th><th>L-WR+</th>
+      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR%</th><th>L-NLR%</th><th>L-P&amp;L</th>
       <th></th>
-      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR</th><th>S-WR+</th>
+      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR%</th><th>S-NLR%</th><th>S-P&amp;L</th>
       <th>Gesamt</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function renderTrailingTable(trailingBD) {
-  const allRules = ['Regel 1','Regel 2','Regel 3','Regel 4'];
-  const extra = Object.keys(trailingBD).filter(k=>!allRules.includes(k)).sort((a,b)=>sortRuleKey(a)-sortRuleKey(b));
-  const keys = [...allRules, ...extra];
-  const beLabel = `BE${BE_THRESHOLD}`;
-
-  let tl_be=0,tl_tr=0,ts_be=0,ts_tr=0;
-  let rows = '';
-  for (const rk of keys) {
-    const tl=(trailingBD[rk]||{}).Long||initTrail(), ts=(trailingBD[rk]||{}).Short||initTrail();
-    const {NearBE:lbe,TrailProfit:ltr}=tl, {NearBE:sbe,TrailProfit:str}=ts;
-    tl_be+=lbe;tl_tr+=ltr;ts_be+=sbe;ts_tr+=str;
-    rows += `<tr>
-      <td style="text-align:left">${esc(rk)}</td>
-      <td>${colorCount(lbe,'c-yellow')}</td><td>${colorCount(ltr,'c-green')}</td>
-      <td class="c-muted" style="padding:0 .5rem;">|</td>
-      <td>${colorCount(sbe,'c-yellow')}</td><td>${colorCount(str,'c-green')}</td>
-      <td>${lbe+ltr+sbe+str||''}</td>
-    </tr>`;
-  }
-  rows += `<tr class="total-row">
-    <td style="text-align:left">GESAMT</td>
-    <td>${colorCount(tl_be,'c-yellow')}</td><td>${colorCount(tl_tr,'c-green')}</td>
-    <td class="c-muted" style="padding:0 .5rem;">|</td>
-    <td>${colorCount(ts_be,'c-yellow')}</td><td>${colorCount(ts_tr,'c-green')}</td>
-    <td>${tl_be+tl_tr+ts_be+ts_tr}</td>
-  </tr>`;
-  return `<div class="table-wrap"><table class="stat-table">
-    <thead><tr>
-      <th style="text-align:left">Regel</th>
-      <th>L-${beLabel}</th><th>L-Trail+</th><th></th>
-      <th>S-${beLabel}</th><th>S-Trail+</th><th>Gesamt</th>
-    </tr></thead><tbody>${rows}</tbody></table></div>`;
-}
 
 function renderPnlOverview(pnlVals) {
   let html = '';
@@ -3614,42 +3580,43 @@ function renderPnlByTime(pnlVals, stats) {
 
 function renderWeekdayTable(weekdayStats) {
   const ORDER = ['Mo','Di','Mi','Do','Fr','Sa','So'];
-  let tl_tp=0,tl_be=0,tl_sl=0,ts_tp=0,ts_be=0,ts_sl=0;
+  let tl_tp=0,tl_be=0,tl_sl=0,ts_tp=0,ts_be=0,ts_sl=0,tl_pnl=0,ts_pnl=0;
   let rows = '';
   for (const wd of ORDER) {
     const sl=(weekdayStats[wd]||{}).Long||initDir();
     const ss=(weekdayStats[wd]||{}).Short||initDir();
-    const {TP:ltp,BE:lbe,SL:lsl}=sl, {TP:stp,BE:sbe,SL:ssl}=ss;
+    const {TP:ltp,BE:lbe,SL:lsl,pnl:lpnl}=sl, {TP:stp,BE:sbe,SL:ssl,pnl:spnl}=ss;
     tl_tp+=ltp;tl_be+=lbe;tl_sl+=lsl;ts_tp+=stp;ts_be+=sbe;ts_sl+=ssl;
+    tl_pnl+=lpnl; ts_pnl+=spnl;
     const lt=ltp+lbe+lsl, st=stp+sbe+ssl;
     const g=lt+st;
     rows+=`<tr>
       <td style="text-align:left;font-weight:500">${esc(wd)}</td>
-      <td class="c-muted">${g||''}</td>
       <td>${colorCount(ltp,'c-green')}</td><td>${colorCount(lbe,'c-yellow')}</td><td>${colorCount(lsl,'c-red')}</td>
-      <td>${fmtWr(ltp,lt)}</td>
+      <td>${fmtWr(ltp,lsl)}</td><td>${fmtNlr(ltp,lbe,lsl)}</td><td>${colorPnl(lpnl)}</td>
       <td class="c-muted" style="padding:0 .25rem;">|</td>
       <td>${colorCount(stp,'c-green')}</td><td>${colorCount(sbe,'c-yellow')}</td><td>${colorCount(ssl,'c-red')}</td>
-      <td>${fmtWr(stp,st)}</td>
+      <td>${fmtWr(stp,ssl)}</td><td>${fmtNlr(stp,sbe,ssl)}</td><td>${colorPnl(spnl)}</td>
+      <td class="c-muted">${g||''}</td>
     </tr>`;
   }
   const tlt=tl_tp+tl_be+tl_sl, tst=ts_tp+ts_be+ts_sl;
   rows+=`<tr class="total-row">
     <td style="text-align:left">GESAMT</td>
-    <td class="c-muted">${tlt+tst}</td>
     <td>${colorCount(tl_tp,'c-green')}</td><td>${colorCount(tl_be,'c-yellow')}</td><td>${colorCount(tl_sl,'c-red')}</td>
-    <td>${fmtWr(tl_tp,tlt)}</td>
+    <td>${fmtWr(tl_tp,tl_sl)}</td><td>${fmtNlr(tl_tp,tl_be,tl_sl)}</td><td>${colorPnl(tl_pnl)}</td>
     <td class="c-muted" style="padding:0 .25rem;">|</td>
     <td>${colorCount(ts_tp,'c-green')}</td><td>${colorCount(ts_be,'c-yellow')}</td><td>${colorCount(ts_sl,'c-red')}</td>
-    <td>${fmtWr(ts_tp,tst)}</td>
+    <td>${fmtWr(ts_tp,ts_sl)}</td><td>${fmtNlr(ts_tp,ts_be,ts_sl)}</td><td>${colorPnl(ts_pnl)}</td>
+    <td class="c-muted">${tlt+tst}</td>
   </tr>`;
   return `<div class="table-wrap"><table class="stat-table">
     <thead><tr>
       <th style="text-align:left">Wochentag</th>
-      <th>Gesamt</th>
-      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR%</th>
+      <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR%</th><th>L-NLR%</th><th>L-P&amp;L</th>
       <th></th>
-      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR%</th>
+      <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR%</th><th>S-NLR%</th><th>S-P&amp;L</th>
+      <th>Gesamt</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -3675,10 +3642,10 @@ function renderCandleBins(trades, numBins, manualCount, manualPnl, manualTrades)
       rows+=`<tr>
         <td style="text-align:left">${b.lo.toFixed(1)}–${b.hi.toFixed(1)}</td>
         <td>${colorCount(b.Long.TP,'c-green')}</td><td>${colorCount(b.Long.TSL,'c-yellow')}</td><td>${colorCount(b.Long.SL,'c-red')}</td>
-        <td>${fmtWr(b.Long.TP,lt)}</td><td>${colorPnl(b.Long.pnl)}</td>
+        <td>${fmtWr(b.Long.TP,b.Long.SL)}</td><td>${fmtNlr(b.Long.TP,b.Long.TSL,b.Long.SL)}</td><td>${colorPnl(b.Long.pnl)}</td>
         <td class="c-muted" style="padding:0 .25rem;">|</td>
         <td>${colorCount(b.Short.TP,'c-green')}</td><td>${colorCount(b.Short.TSL,'c-yellow')}</td><td>${colorCount(b.Short.SL,'c-red')}</td>
-        <td>${fmtWr(b.Short.TP,st)}</td><td>${colorPnl(b.Short.pnl)}</td>
+        <td>${fmtWr(b.Short.TP,b.Short.SL)}</td><td>${fmtNlr(b.Short.TP,b.Short.TSL,b.Short.SL)}</td><td>${colorPnl(b.Short.pnl)}</td>
         <td>${lt+st}</td>
       </tr>`;
     }
@@ -3686,17 +3653,17 @@ function renderCandleBins(trades, numBins, manualCount, manualPnl, manualTrades)
     rows+=`<tr class="total-row">
       <td style="text-align:left">GESAMT</td>
       <td>${colorCount(tl_tp,'c-green')}</td><td>${colorCount(tl_tsl,'c-yellow')}</td><td>${colorCount(tl_sl,'c-red')}</td>
-      <td>${fmtWr(tl_tp,tlt)}</td><td>${colorPnl(tl_pnl)}</td>
+      <td>${fmtWr(tl_tp,tl_sl)}</td><td>${fmtNlr(tl_tp,tl_tsl,tl_sl)}</td><td>${colorPnl(tl_pnl)}</td>
       <td class="c-muted" style="padding:0 .25rem;">|</td>
       <td>${colorCount(ts_tp,'c-green')}</td><td>${colorCount(ts_tsl,'c-yellow')}</td><td>${colorCount(ts_sl,'c-red')}</td>
-      <td>${fmtWr(ts_tp,tst)}</td><td>${colorPnl(ts_pnl)}</td>
+      <td>${fmtWr(ts_tp,ts_sl)}</td><td>${fmtNlr(ts_tp,ts_tsl,ts_sl)}</td><td>${colorPnl(ts_pnl)}</td>
       <td>${tlt+tst}</td>
     </tr>`;
     if (manualCount>0) {
       rows+=`<tr class="manual-row">
         <td style="text-align:left">Manuell*</td>
-        <td>—</td><td>—</td><td>—</td><td>—</td><td>${colorPnl(manualPnl.Long)}</td><td></td>
-        <td>—</td><td>—</td><td>—</td><td>—</td><td>${colorPnl(manualPnl.Short)}</td>
+        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>${colorPnl(manualPnl.Long)}</td><td></td>
+        <td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>${colorPnl(manualPnl.Short)}</td>
         <td>${manualCount}</td>
       </tr>`;
     }
@@ -3704,8 +3671,8 @@ function renderCandleBins(trades, numBins, manualCount, manualPnl, manualTrades)
       <div class="table-wrap"><table class="stat-table">
         <thead><tr>
           <th style="text-align:left">High-Low</th>
-          <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR</th><th>L-P&amp;L</th><th></th>
-          <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR</th><th>S-P&amp;L</th>
+          <th>L-TP</th><th>L-TSL</th><th>L-SL</th><th>L-WR%</th><th>L-NLR%</th><th>L-P&amp;L</th><th></th>
+          <th>S-TP</th><th>S-TSL</th><th>S-SL</th><th>S-WR%</th><th>S-NLR%</th><th>S-P&amp;L</th>
           <th>Gesamt</th>
         </tr></thead><tbody>${rows}</tbody>
       </table></div>`;
@@ -3739,7 +3706,7 @@ function renderCandleBins(trades, numBins, manualCount, manualPnl, manualTrades)
 }
 
 function renderOutput(result) {
-  const {stats,ruleStats,trailingBD,pnlVals,weekdayStats,startBalance,balanceCurve,equityCurve,
+  const {stats,ruleStats,pnlVals,weekdayStats,startBalance,balanceCurve,equityCurve,
          balanceEvts,equityEvts,candleTrades,manualCount,manualPnl,manualTrades} = result;
 
   const [balDdAbs,balDdPct] = maxDrawdown(balanceCurve);
@@ -3784,12 +3751,7 @@ function renderOutput(result) {
 
   <div class="output-section">
     <div class="section-title">📋 Ergebnisse nach Regel</div>
-    ${renderRuleTable(ruleStats, trailingBD, manualCount)}
-  </div>
-
-  <div class="output-section">
-    <div class="section-title">🎯 Trailing-Aufschlüsselung</div>
-    ${renderTrailingTable(trailingBD)}
+    ${renderRuleTable(ruleStats, manualCount)}
   </div>
 
   <div class="output-section">
@@ -3804,11 +3766,9 @@ function renderOutput(result) {
 
   <div class="legend-box">
     <strong>Legende:</strong>
-    TSL = Stop-Loss nach aktivem Trailing &nbsp;|&nbsp;
-    WR = nur echte TP &nbsp;|&nbsp;
-    WR+ = TP + Trail+ als Gewinn &nbsp;|&nbsp;
-    BE${BE_THRESHOLD} = TSL mit gesichertem Betrag innerhalb ±${BE_THRESHOLD} USD &nbsp;|&nbsp;
-    Trail+ = TSL außerhalb dieser Spanne
+    TSL = Trailing-Stop ausgelöst &nbsp;|&nbsp;
+    WR% = Winrate = TP ÷ (TP+SL) &nbsp;|&nbsp;
+    NLR% = NoLossRate = (TP+TSL) ÷ (TP+TSL+SL)
     ${manualCount > 0 ? '<br>* Manuell = Zeitbasiertes Schließen (Evening/Weekend/Holiday-Close)' : ''}
   </div>`;
   return out;
