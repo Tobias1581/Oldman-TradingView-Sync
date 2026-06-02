@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.03
+// @version      4.04
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -507,23 +507,12 @@
     }
 
     function getPeriodFromToolbar() {
-        // TradingView zeigt den aktiven Timeframe als Button mit aria-pressed="true"
-        // oder als speziellen "resolution" Button im Chart-Header
-        const selectors = [
-            '[data-name="header-toolbar-intervals"] button[aria-pressed="true"]',
-            '[data-name="header-toolbar-intervals"] button[class*="isActive"]',
-            '[data-name="header-toolbar-intervals"] button[class*="selected"]',
-            'button[data-value][aria-pressed="true"]',
-        ];
-        for (const sel of selectors) {
-            const btn = document.querySelector(sel);
-            if (btn) {
-                const result = intervalTextToPeriod(btn.innerText);
-                if (result) {
-                    log(`Toolbar selector matched: "${sel}", text: "${btn.innerText}"`);
-                    return result;
-                }
-            }
+        // "Intervall ändern"-Button zeigt den aktuell aktiven Timeframe
+        const btn = document.querySelector('button[aria-label="Intervall ändern"]');
+        if (btn) {
+            const result = intervalTextToPeriod(btn.innerText);
+            log(`Interval button found, text: "${btn.innerText}", mapped: ${result}`);
+            if (result) return result;
         }
         return null;
     }
