@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.0
+// @version      4.1
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -479,6 +479,17 @@
         return span.innerText.trim();
     }
 
+    function getPeriodFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const interval = params.get("interval");
+        if (interval === "15")  return "m15";
+        if (interval === "30")  return "m30";
+        if (interval === "60")  return "h1";
+        if (interval === "D")   return "d1";
+        if (interval)           return "h1";
+        return null;
+    }
+
     function getPeriodFromBacktestFlags(tv) {
         return tv["Backtest auf dem M15 ?"] ? "m15" :
                tv["Backtest auf dem M30 ?"] ? "m30" :
@@ -487,7 +498,8 @@
 
     function buildChartSection(tv) {
         const tvSymbolRaw = getTradingViewSymbol();
-        const period = getPeriodFromBacktestFlags(tv);
+        const period = getPeriodFromUrl() ?? getPeriodFromBacktestFlags(tv);
+        log(`Period detected: ${period} (URL: ${window.location.search})`);
         return {
             Symbol: mapToFtmoSymbol(tvSymbolRaw),
             Period: period
