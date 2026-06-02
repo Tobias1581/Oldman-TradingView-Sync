@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.01
+// @version      4.02
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -16,7 +16,7 @@
     //  KONFIGURATION
     // ============================================================
     const STORAGE_KEY = 'oldman_strategy_to_alarm_settings';
-    const DEBUG = false;
+    const DEBUG = true;
     // ============================================================
     //  SHARED HELPERS
     // ============================================================
@@ -490,6 +490,18 @@
         return null;
     }
 
+    function getPeriodFromToolbar() {
+        // Aktiver Timeframe-Button in der TradingView-Toolbar
+        const btn = document.querySelector('#header-toolbar-intervals button[class*="active"], #header-toolbar-intervals button[data-active="true"]');
+        const text = btn ? btn.innerText.trim().toUpperCase() : null;
+        if (!text) return null;
+        if (text === "15")  return "m15";
+        if (text === "30")  return "m30";
+        if (text === "60" || text === "1H") return "h1";
+        if (text === "D" || text === "1D")  return "d1";
+        return null;
+    }
+
     function getPeriodFromBacktestFlags(tv) {
         return tv["Backtest auf dem M15 ?"] ? "m15" :
                tv["Backtest auf dem M30 ?"] ? "m30" :
@@ -498,8 +510,8 @@
 
     function buildChartSection(tv) {
         const tvSymbolRaw = getTradingViewSymbol();
-        const period = getPeriodFromUrl() ?? getPeriodFromBacktestFlags(tv);
-        log(`Period detected: ${period} (URL: ${window.location.search})`);
+        const period = getPeriodFromUrl() ?? getPeriodFromToolbar() ?? getPeriodFromBacktestFlags(tv);
+        log(`Period detected: ${period} (URL interval: ${new URLSearchParams(window.location.search).get("interval")}, toolbar: ${document.querySelector('#header-toolbar-intervals button[class*="active"], #header-toolbar-intervals button[data-active="true"]')?.innerText})`);
         return {
             Symbol: mapToFtmoSymbol(tvSymbolRaw),
             Period: period
