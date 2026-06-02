@@ -479,26 +479,52 @@
         return span.innerText.trim();
     }
 
+    function intervalTextToPeriod(text) {
+        if (!text) return null;
+        const t = text.trim().toUpperCase();
+        if (t === "15")             return "m15";
+        if (t === "30")             return "m30";
+        if (t === "60" || t === "1H") return "h1";
+        if (t === "D"  || t === "1D") return "d1";
+        return null;
+    }
+
     function getPeriodFromUrl() {
+        // Query-Parameter
         const params = new URLSearchParams(window.location.search);
         const interval = params.get("interval");
-        if (interval === "15")  return "m15";
-        if (interval === "30")  return "m30";
-        if (interval === "60")  return "h1";
-        if (interval === "D")   return "d1";
-        if (interval)           return "h1";
+        if (interval) return intervalTextToPeriod(interval);
+
+        // Hash kann JSON wie {"symbol":"...","resolution":"30"} enthalten
+        try {
+            const hash = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+            if (hash.startsWith("{")) {
+                const obj = JSON.parse(hash);
+                if (obj.resolution) return intervalTextToPeriod(String(obj.resolution));
+            }
+        } catch(e) {}
         return null;
     }
 
     function getPeriodFromToolbar() {
-        // Aktiver Timeframe-Button in der TradingView-Toolbar
-        const btn = document.querySelector('#header-toolbar-intervals button[class*="active"], #header-toolbar-intervals button[data-active="true"]');
-        const text = btn ? btn.innerText.trim().toUpperCase() : null;
-        if (!text) return null;
-        if (text === "15")  return "m15";
-        if (text === "30")  return "m30";
-        if (text === "60" || text === "1H") return "h1";
-        if (text === "D" || text === "1D")  return "d1";
+        // TradingView zeigt den aktiven Timeframe als Button mit aria-pressed="true"
+        // oder als speziellen "resolution" Button im Chart-Header
+        const selectors = [
+            '[data-name="header-toolbar-intervals"] button[aria-pressed="true"]',
+            '[data-name="header-toolbar-intervals"] button[class*="isActive"]',
+            '[data-name="header-toolbar-intervals"] button[class*="selected"]',
+            'button[data-value][aria-pressed="true"]',
+        ];
+        for (const sel of selectors) {
+            const btn = document.querySelector(sel);
+            if (btn) {
+                const result = intervalTextToPeriod(btn.innerText);
+                if (result) {
+                    log(`Toolbar selector matched: "${sel}", text: "${btn.innerText}"`);
+                    return result;
+                }
+            }
+        }
         return null;
     }
 
@@ -510,8 +536,11 @@
 
     function buildChartSection(tv) {
         const tvSymbolRaw = getTradingViewSymbol();
-        const period = getPeriodFromUrl() ?? getPeriodFromToolbar() ?? getPeriodFromBacktestFlags(tv);
-        log(`Period detected: ${period} (URL interval: ${new URLSearchParams(window.location.search).get("interval")}, toolbar: ${document.querySelector('#header-toolbar-intervals button[class*="active"], #header-toolbar-intervals button[data-active="true"]')?.innerText})`);
+        const fromUrl     = getPeriodFromUrl();
+        const fromToolbar = getPeriodFromToolbar();
+        const fromFlags   = getPeriodFromBacktestFlags(tv);
+        const period = fromUrl ?? fromToolbar ?? fromFlags;
+        log(`Period sources — URL: ${fromUrl}, Toolbar: ${fromToolbar}, Flags: ${fromFlags} → using: ${period}`);
         return {
             Symbol: mapToFtmoSymbol(tvSymbolRaw),
             Period: period
