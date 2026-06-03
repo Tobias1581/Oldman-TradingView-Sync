@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.04
+// @version      4.0
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -159,7 +159,9 @@
             "MACD-Filter Long ?", "MACD-Filter Short ?",
             "MACD-Fast", "MACD-Slow", "MACD-Signal",
             "StochRSI-Filter Long ?", "StochRSI-Filter Short ?",
-            "SRSI Max (Long)", "SRSI Min (Short)"
+            "SRSI Max (Long)", "SRSI Min (Short)",
+            "ADX-Filter Long ?", "ADX-Filter Short ?", "ADX Periode", "ADX Minimum",
+            "ATR-Filter Long ?", "ATR-Filter Short ?", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"
         ];
 
         fieldsToExport.forEach(field => {
@@ -384,12 +386,7 @@
 
         log(`✓ Import Complete: ${imported} successful, ${failed.length} failed`);
 
-        if (failed.length > 0) {
-        }
-
-        if (failed.length > 0) {
-            alert(`Import abgeschlossen!\n\n✓ ${imported} Settings importiert\n⚠ Fehlgeschlagen (${failed.length}):\n${failed.map(f => "  - " + f).join("\n")}`);
-        } else if (imported > 0) {
+        if (imported > 0) {
             alert(`✓ Import erfolgreich!\n\n${imported} Settings wurden übertragen.`);
         }
 
@@ -671,7 +668,18 @@
             UseStochRSIFilterL: false,
             UseStochRSIFilterS: false,
             StochUpper: 90,
-            StochLower: 10
+            StochLower: 10,
+
+            UseADXFilterL: false,
+            UseADXFilterS: false,
+            ADXPeriod: 14,
+            ADXMin: 20.0,
+
+            UseATRFilterL: false,
+            UseATRFilterS: false,
+            ATRPeriod: 14,
+            ATRMinPips: 0.0,
+            ATRMaxPips: 0.0
         };
     }
 
@@ -886,6 +894,19 @@
 
         p.StochUpper = num(tv["SRSI Max (Long)"],  p.StochUpper);
         p.StochLower = num(tv["SRSI Min (Short)"], p.StochLower);
+
+        // ADX
+        p.UseADXFilterL = bool(tv["ADX-Filter Long ?"]);
+        p.UseADXFilterS = bool(tv["ADX-Filter Short ?"]);
+        p.ADXPeriod     = num(tv["ADX Periode"],  p.ADXPeriod);
+        p.ADXMin        = num(tv["ADX Minimum"],  p.ADXMin);
+
+        // ATR
+        p.UseATRFilterL = bool(tv["ATR-Filter Long ?"]);
+        p.UseATRFilterS = bool(tv["ATR-Filter Short ?"]);
+        p.ATRPeriod     = num(tv["ATR Periode"],   p.ATRPeriod);
+        p.ATRMinPips    = num(tv["ATR Min (Pts)"], p.ATRMinPips);
+        p.ATRMaxPips    = num(tv["ATR Max (Pts)"], p.ATRMaxPips);
 
         return p;
     }
@@ -1108,6 +1129,19 @@
         tv["SRSI Max (Long)"]  = config.StochUpper;
         tv["SRSI Min (Short)"] = config.StochLower;
 
+        // ADX
+        tv["ADX-Filter Long ?"]  = config.UseADXFilterL;
+        tv["ADX-Filter Short ?"] = config.UseADXFilterS;
+        tv["ADX Periode"]        = config.ADXPeriod;
+        tv["ADX Minimum"]        = config.ADXMin;
+
+        // ATR
+        tv["ATR-Filter Long ?"]  = config.UseATRFilterL;
+        tv["ATR-Filter Short ?"] = config.UseATRFilterS;
+        tv["ATR Periode"]        = config.ATRPeriod;
+        tv["ATR Min (Pts)"]      = config.ATRMinPips;
+        tv["ATR Max (Pts)"]      = config.ATRMaxPips;
+
         return tv;
     }
 
@@ -1214,14 +1248,7 @@
 
                     log(`✓ cTrader Import Complete: ${imported} successful, ${failed.length} failed`);
 
-                    if (failed.length > 0) {
-                    }
-
-                    if (failed.length > 0) {
-                        alert(`cTrader Import abgeschlossen!\n\n✓ ${imported} Settings importiert\n⚠ Fehlgeschlagen (${failed.length}):\n${failed.map(f => "  - " + f).join("\n")}\n\n⚠ Bitte manuell in TradingView setzen:\n- WE-Endzeit\n- Abend-Endzeit\n- Early-Close Zeit\n→ Kerzenzeit des jeweiligen Timeframes!`);
-                    } else {
-                        alert(`✓ cTrader Import erfolgreich!\n\n${imported} Settings wurden übertragen.\n\n⚠ Bitte manuell in TradingView setzen:\n- WE-Endzeit\n- Abend-Endzeit\n- Early-Close Zeit\n→ Kerzenzeit des jeweiligen Timeframes!`);
-                    }
+                    alert(`✓ cTrader Import erfolgreich!\n\n${imported} Settings wurden übertragen.\n\n⚠ Bitte manuell in TradingView setzen:\n- WE-Endzeit\n- Abend-Endzeit\n- Early-Close Zeit\n→ Kerzenzeit des jeweiligen Timeframes!`);
 
                     resolve(imported);
 
