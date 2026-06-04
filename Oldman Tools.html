@@ -3256,7 +3256,7 @@ function parseLog(text) {
   const rxVolume  = /Volumen\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*Lots/;
   const rxEntry   = /Entry\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)/;
   const rxGrund   = /Grund\s*:\s*(Take-Profit|Stop-Loss|Manuell\/Bot)/;
-  const rxPnl     = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*USD/;
+  const rxPnl     = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*(?:USD|EUR|GBP|CHF)/;
 
   for (const line of lines) {
     const lineTs = parseTs(line);
@@ -4382,7 +4382,7 @@ function extractTrades(text) {
   const rxClose = /Position #(\d+) geschlossen/;
   const rxDir   = /Richtung\s*:\s*(Long|Short)/;
   const rxGrund = /Grund\s*:\s*(Take-Profit|Stop-Loss|Manuell\/Bot)/;
-  const rxPnl   = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*USD/;
+  const rxPnl   = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*(?:USD|EUR|GBP|CHF)/;
 
   const posEntryTime = {};
   let inClosed = false, curId = null, curTrade = null;
