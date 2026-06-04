@@ -697,16 +697,22 @@ body.dark .drop-zone:hover{background:var(--surface2);border-color:var(--blue);}
 <div class="tab-panel" id="tab-vergleich">
   <div id="vglMsg" class="msg"></div>
 
+  <!-- Mode toggle -->
+  <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+    <button class="btn btn-primary"   id="vgl-btn-tv" onclick="vglSetMode('tv')">📈 TradingView vs. cTrader</button>
+    <button class="btn btn-secondary" id="vgl-btn-ct" onclick="vglSetMode('ct')">📋 cTrader vs. cTrader</button>
+  </div>
+
   <!-- Step indicator -->
   <div class="wiz-track" id="vgl-track">
     <div class="wiz-step active" id="vgl-s1" onclick="vglClickStep(1)">
       <div class="wiz-num">1</div>
-      <div class="wiz-label">TV-Export</div>
+      <div class="wiz-label" id="vgl-s1-label">TV-Export</div>
     </div>
     <div class="wiz-line" id="vgl-line1"></div>
     <div class="wiz-step" id="vgl-s2" onclick="vglClickStep(2)">
       <div class="wiz-num">2</div>
-      <div class="wiz-label">cTrader-Log</div>
+      <div class="wiz-label" id="vgl-s2-label">cTrader-Log</div>
     </div>
     <div class="wiz-line" id="vgl-line2"></div>
     <div class="wiz-step" id="vgl-s3" onclick="vglClickStep(3)">
@@ -715,14 +721,14 @@ body.dark .drop-zone:hover{background:var(--surface2);border-color:var(--blue);}
     </div>
   </div>
 
-  <!-- Step 1: TradingView Export hochladen -->
+  <!-- Step 1: Datei A hochladen (Inhalt wird per JS je nach Modus gesetzt) -->
   <div class="wiz-panel active" id="vgl-p1">
     <div class="card">
       <div class="card-header">
-        <span class="card-title">📈 TradingView Export hochladen</span>
-        <code style="font-size:.75rem;background:var(--surface2);padding:.15rem .4rem;border-radius:3px;color:var(--blue);">.csv / .xlsx</code>
+        <span class="card-title" id="vgl-p1-title">📈 TradingView Export hochladen</span>
+        <code style="font-size:.75rem;background:var(--surface2);padding:.15rem .4rem;border-radius:3px;color:var(--blue);" id="vgl-p1-ext">.csv / .xlsx</code>
       </div>
-      <div style="padding:.75rem 1.25rem .25rem;font-size:.9375rem;color:var(--text-muted);line-height:1.6;">
+      <div style="padding:.75rem 1.25rem .25rem;font-size:.9375rem;color:var(--text-muted);line-height:1.6;" id="vgl-p1-desc">
         Exportiere die Trade-Liste aus dem TradingView Strategietester als CSV oder XLSX.
       </div>
       <input type="file" id="vglFileA" accept=".csv,.xls,.xlsx">
@@ -735,14 +741,14 @@ body.dark .drop-zone:hover{background:var(--surface2);border-color:var(--blue);}
     </div>
   </div>
 
-  <!-- Step 2: cTrader Backtest-Log hochladen -->
+  <!-- Step 2: cTrader-Log hochladen (immer .txt) -->
   <div class="wiz-panel" id="vgl-p2">
     <div class="card">
       <div class="card-header">
-        <span class="card-title">📋 cTrader Backtest-Log hochladen</span>
+        <span class="card-title" id="vgl-p2-title">📋 cTrader Backtest-Log hochladen</span>
         <code style="font-size:.75rem;background:var(--surface2);padding:.15rem .4rem;border-radius:3px;color:var(--blue);">.txt</code>
       </div>
-      <div style="padding:.75rem 1.25rem .25rem;font-size:.9375rem;color:var(--text-muted);line-height:1.6;">
+      <div style="padding:.75rem 1.25rem .25rem;font-size:.9375rem;color:var(--text-muted);line-height:1.6;" id="vgl-p2-desc">
         Lade die Log-Datei aus dem cTrader Backtest — dieselbe Strategie, derselbe Zeitraum wie im TV-Export.
       </div>
       <input type="file" id="vglFileB" accept=".txt,.log">
@@ -3112,13 +3118,23 @@ function maxDrawdown(vals) {
 }
 
 function normalizeRule(name) {
+  // Keep MA50 / MA200 distinction within Regel 4
+  if (/Regel\s*4/i.test(name)) {
+    if (name.includes('MA200')) return 'Regel 4 MA200';
+    if (name.includes('MA50'))  return 'Regel 4 MA50';
+    return 'Regel 4';
+  }
   const m = name.match(/(Regel\s*\d+)/);
   return m ? m[1] : name;
 }
 
 function sortRuleKey(k) {
   const m = k.match(/Regel\s*(\d+)/);
-  return m ? +m[1] : 999;
+  if (!m) return 999;
+  const base = +m[1] * 10;
+  if (k.includes('MA50'))  return base + 1;
+  if (k.includes('MA200')) return base + 2;
+  return base;
 }
 
 function initDir() { return { TP:0, BE:0, SL:0, pnl:0 }; }
@@ -3223,7 +3239,7 @@ function parseLog(text) {
   const closedDetails = {};
 
   const rxTs      = /^(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2}\.\d{3})/;
-  const rxStartBal= /Start-Balance\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*USD/;
+  const rxStartBal= /(?:Start-)?Balance\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*(?:USD)?/;
   const rxEquity  = /Aktuelles Equity\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*USD/;
   const rxClose   = /Close=([+-]?\d+(?:\.\d{3})*(?:,\d+)?)/;
   const rxKerze   = /Kerze Berlin\s*:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/;
@@ -3516,7 +3532,7 @@ function renderMainTable(stats, pnlVals) {
 }
 
 function renderRuleTable(ruleStats, manualCount) {
-  const allRules = ['Regel 1','Regel 2','Regel 3','Regel 4'];
+  const allRules = ['Regel 1','Regel 2','Regel 3','Regel 4 MA50','Regel 4 MA200'];
   const extra = Object.keys(ruleStats).filter(k=>!allRules.includes(k)).sort((a,b)=>sortRuleKey(a)-sortRuleKey(b));
   const keys = [...allRules, ...extra];
 
@@ -3780,6 +3796,411 @@ function renderCandleBins(trades, numBins, manualCount, manualPnl, manualTrades)
        + renderBinTable(binsQ, `Kerzengröße (High-Low) – ${numBins} Bins (Quantil, ~${tpb} Trades/Bin)`);
 }
 
+// ── Log-Analyse chart renderers ────────────────────────────────────────────
+
+// Downsample to maxPts by taking evenly spaced indices (keeps first + last)
+function ausDownsample(arr, maxPts) {
+	if (arr.length <= maxPts) return arr;
+	const step = (arr.length - 1) / (maxPts - 1);
+	return Array.from({length: maxPts}, (_, i) => arr[Math.round(i * step)]);
+}
+
+// Return Date objects for the 1st of each month within [tMin, tMax] (ms)
+function ausMonthStarts(tMin, tMax) {
+	const starts = [];
+	const d = new Date(tMin);
+	d.setDate(1); d.setHours(0, 0, 0, 0);
+	if (d.getTime() < tMin) d.setMonth(d.getMonth() + 1);
+	while (d.getTime() <= tMax) {
+		starts.push(new Date(d));
+		d.setMonth(d.getMonth() + 1);
+	}
+	return starts;
+}
+
+// 'Jan 25' for January (marks year), 'Feb' / 'Mär' / … for other months
+function ausMonthLabel(d) {
+	const n = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+	return d.getMonth() === 0
+		? n[0] + ' ' + String(d.getFullYear()).slice(2)
+		: n[d.getMonth()];
+}
+
+// Compute a visually clean step size and return evenly-spaced tick values
+function ausNiceTicks(lo, hi, targetTicks) {
+	const range = hi - lo;
+	if (!range) return [lo];
+	const rough = range / (targetTicks || 5);
+	const mag   = Math.pow(10, Math.floor(Math.log10(rough)));
+	const r     = rough / mag;
+	const step  = (r < 1.5 ? 1 : r < 3 ? 2 : r < 7 ? 5 : 10) * mag;
+	const first = Math.ceil(lo / step) * step;
+	const ticks = [];
+	for (let v = first; v <= hi * 1.0001; v = Math.round((v + step) * 1e9) / 1e9) {
+		ticks.push(v);
+		if (ticks.length > 25) break;
+	}
+	return ticks;
+}
+
+// Chart 1: Balance per trade (top) + Drawdown in USD (bottom)
+// Uses balanceEvts (one point per closed trade) for a jagged, trade-by-trade view
+function ausRenderEquityChart(balanceEvts, startBalance) {
+	if (!balanceEvts || balanceEvts.length < 2) return '';
+
+	const W = 800, PAD_L = 72, PAD_R = 20, PAD_T = 18;
+	const H1 = 200, GAP = 36, H2 = 80, PAD_B = 26;
+	const H = PAD_T + H1 + GAP + H2 + PAD_B;
+	const CW = W - PAD_L - PAD_R;
+
+	const allT = balanceEvts.map(e => e[0].getTime());
+	const tMin = Math.min(...allT), tMax = Math.max(...allT);
+	const tRange = tMax - tMin || 1;
+	const tX = t => PAD_L + (t - tMin) / tRange * CW;
+
+	// Balance Y-axis: starts at startBalance (or min), uses round step sizes
+	const bVals = balanceEvts.map(e => e[1]);
+	const bMax  = Math.max(...bVals);
+	const bLo   = startBalance !== null ? startBalance : Math.min(...bVals);
+	const bHi   = bMax + (bMax - bLo) * 0.04 || bMax + 500;
+	const bRange = bHi - bLo || 1;
+	const bY = v => PAD_T + H1 * (1 - (v - bLo) / bRange);
+
+	// Drawdown panel
+	const dTop = PAD_T + H1 + GAP;
+	let runMax = startBalance !== null ? startBalance : bVals[0];
+	const ddSeries = balanceEvts.map(([d, v]) => {
+		if (v > runMax) runMax = v;
+		return { t: d.getTime(), v: v - runMax }; // always ≤ 0
+	});
+	const ddMin = Math.min(...ddSeries.map(p => p.v));
+	const ddPad = Math.abs(ddMin) * 0.08 || 50;
+	const ddLo = ddMin - ddPad, ddHi = ddPad * 0.3, ddRange = ddHi - ddLo || 1;
+	const ddY = v => dTop + H2 * (1 - (v - ddLo) / ddRange);
+
+	// SVG paths
+	const bal_d = balanceEvts.map((e, i) => `${i?'L':'M'}${tX(e[0].getTime()).toFixed(1)},${bY(e[1]).toFixed(1)}`).join('');
+
+	// Drawdown fill + line
+	let ddFill = '', ddLine = '';
+	if (ddSeries.length > 1) {
+		const coords = ddSeries.map(p => `${tX(p.t).toFixed(1)},${ddY(p.v).toFixed(1)}`).join(' ');
+		const x0 = tX(ddSeries[0].t).toFixed(1), xN = tX(ddSeries[ddSeries.length-1].t).toFixed(1);
+		ddFill = `<polygon points="${coords} ${xN},${ddY(0).toFixed(1)} ${x0},${ddY(0).toFixed(1)}" fill="var(--red)" opacity="0.2"/>`;
+		ddLine = `<path d="${ddSeries.map((p,i)=>`${i?'L':'M'}${tX(p.t).toFixed(1)},${ddY(p.v).toFixed(1)}`).join('')}" fill="none" stroke="var(--red)" stroke-width="1.5"/>`;
+	}
+
+	// Grid + tick labels (round steps)
+	const bTicks  = ausNiceTicks(bLo, bHi, 6);
+	const bGrid   = bTicks.map(v => `<line x1="${PAD_L}" y1="${bY(v).toFixed(1)}" x2="${W-PAD_R}" y2="${bY(v).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`).join('');
+	const bLabels = bTicks.map(v => `<text x="${PAD_L-5}" y="${(bY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${vglFmtTick(v)}</text>`).join('');
+	const ddTicks  = ausNiceTicks(ddLo, 0, 4);
+	const ddGrid   = ddTicks.map(v => `<line x1="${PAD_L}" y1="${ddY(v).toFixed(1)}" x2="${W-PAD_R}" y2="${ddY(v).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`).join('');
+	const ddLabels = ddTicks.map(v => `<text x="${PAD_L-5}" y="${(ddY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${vglFmtTick(v)}</text>`).join('');
+	// Month-start ticks: vertical lines + x-axis labels
+	const mStarts    = ausMonthStarts(tMin, tMax);
+	const monthLines = mStarts.map(d => {
+		const x = tX(d.getTime()).toFixed(1);
+		return `<line x1="${x}" y1="${PAD_T}" x2="${x}" y2="${dTop+H2}" stroke="var(--border)" stroke-width="1" opacity="0.4"/>`;
+	}).join('');
+	const xLabels = mStarts.map(d => {
+		const x = tX(d.getTime()).toFixed(1);
+		return `<text x="${x}" y="${H-4}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${ausMonthLabel(d)}</text>`;
+	}).join('');
+
+	return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">
+<rect width="${W}" height="${H}" fill="var(--surface)"/>
+${monthLines}
+${bGrid}${bLabels}
+<path d="${bal_d}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>
+<text x="${PAD_L+4}" y="${PAD_T+14}" font-size="11" fill="var(--text-muted)">Balance (USD)</text>
+<text x="${PAD_L+4}" y="${dTop-9}" font-size="11" fill="var(--text-muted)">Drawdown (USD)</text>
+<line x1="${PAD_L}" y1="${ddY(0).toFixed(1)}" x2="${W-PAD_R}" y2="${ddY(0).toFixed(1)}" stroke="var(--border)" stroke-width="1.5"/>
+${ddGrid}${ddFill}${ddLine}${ddLabels}${xLabels}
+<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${dTop+H2}" stroke="var(--border)" stroke-width="1"/>
+</svg>`;
+}
+
+// Chart 2: P&L per trade as vertical bars, spaced evenly by trade index
+function ausRenderPnlBars(balanceEvts) {
+	if (!balanceEvts || balanceEvts.length < 2) return '';
+
+	// Consecutive balance differences = PnL per trade
+	const tradePnls = [];
+	for (let i = 1; i < balanceEvts.length; i++) {
+		const pnl = balanceEvts[i][1] - balanceEvts[i-1][1];
+		if (Math.abs(pnl) > 0.01) tradePnls.push({ pnl, ts: balanceEvts[i][0] });
+	}
+	if (tradePnls.length < 2) return '';
+
+	const W = 800, PAD_L = 72, PAD_R = 20, PAD_T = 18, PAD_B = 26;
+	const H = 180, CW = W - PAD_L - PAD_R, CH = H - PAD_T - PAD_B;
+
+	const pnlMin = Math.min(0, ...tradePnls.map(t => t.pnl));
+	const pnlMax = Math.max(0, ...tradePnls.map(t => t.pnl));
+	const pad = (pnlMax - pnlMin) * 0.05 || 50;
+	const lo = pnlMin - pad, hi = pnlMax + pad, range = hi - lo || 1;
+	const barY = v => PAD_T + CH * (1 - (v - lo) / range);
+	const zeroY = barY(0);
+
+	const n = tradePnls.length;
+	const barW = Math.max(1, CW / n - 0.5);
+	const bars = tradePnls.map((t, i) => {
+		const x = PAD_L + i * CW / n;
+		const top = Math.min(zeroY, barY(t.pnl)), bh = Math.max(1, Math.abs(barY(t.pnl) - zeroY));
+		return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${t.pnl>=0?'var(--green)':'var(--red)'}" opacity="0.75"/>`;
+	}).join('');
+
+	const yTicks  = ausNiceTicks(lo, hi, 5);
+	const yLabels = yTicks.map(v => `<text x="${PAD_L-5}" y="${(barY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${vglFmtTick(v)}</text>`).join('');
+
+	// Month labels: find first trade of each new month, map to bar x-position
+	const tradeMonthLabels = (() => {
+		let prevM = -1;
+		return tradePnls.map((t, i) => {
+			if (!(t.ts instanceof Date)) return '';
+			const m = t.ts.getFullYear() * 12 + t.ts.getMonth();
+			if (m === prevM) return '';
+			prevM = m;
+			const x = (PAD_L + i * CW / n).toFixed(1);
+			return `<text x="${x}" y="${H-4}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${ausMonthLabel(t.ts)}</text>`;
+		}).join('');
+	})();
+
+	return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">
+<rect width="${W}" height="${H}" fill="var(--surface)"/>
+<line x1="${PAD_L}" y1="${zeroY.toFixed(1)}" x2="${W-PAD_R}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1.5"/>
+${bars}${yLabels}${tradeMonthLabels}
+<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${PAD_T+CH}" stroke="var(--border)" stroke-width="1"/>
+<text x="${W-PAD_R}" y="${PAD_T+13}" text-anchor="end" font-size="11" fill="var(--text-muted)">${n} Trades</text>
+</svg>`;
+}
+
+// Chart 3: Cumulative P&L grouped by candle opening time (bar chart)
+function ausRenderPnlByTime(pnlVals) {
+	const pnlMap = {};
+	for (const dir of ['Long','Short']) {
+		for (const [v, ct] of pnlVals[dir].positive) if (ct && ct !== '-') pnlMap[ct] = (pnlMap[ct]||0) + v;
+		for (const [v, ct] of pnlVals[dir].negative)  if (ct && ct !== '-') pnlMap[ct] = (pnlMap[ct]||0) + v;
+	}
+	const timeData = Object.keys(pnlMap).sort().map(time => ({ time, pnl: pnlMap[time] }));
+	if (timeData.length < 2) return '';
+
+	// Extra top padding for value labels above bars
+	const W = 800, PAD_L = 72, PAD_R = 20, PAD_T = 30, PAD_B = 22;
+	const H = 220, CW = W - PAD_L - PAD_R, CH = H - PAD_T - PAD_B;
+
+	const pnlMin = Math.min(0, ...timeData.map(d => d.pnl));
+	const pnlMax = Math.max(0, ...timeData.map(d => d.pnl));
+	const pad = (pnlMax - pnlMin) * 0.18 || 200;
+	const lo = pnlMin - pad * 0.15, hi = pnlMax + pad, range = hi - lo || 1;
+	const pnlY = v => PAD_T + CH * (1 - (v - lo) / range);
+	const zeroY = pnlY(0);
+
+	const n = timeData.length;
+	const barPx = CW / n;
+	const barW  = Math.max(2, barPx - 1.5);
+	const bars = timeData.map((d, i) => {
+		const x   = PAD_L + i * barPx + (barPx - barW) / 2;
+		const top = Math.min(zeroY, pnlY(d.pnl)), bh = Math.max(1, Math.abs(pnlY(d.pnl) - zeroY));
+		const cx  = (PAD_L + i * barPx + barPx / 2).toFixed(1);
+		const col = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+		return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${col}" opacity="0.75"/>`;
+	}).join('');
+
+	// Horizontal x-labels, show every Nth to avoid overlap
+	const step = Math.ceil(n / 14);
+	const xLabels = timeData.map((d, i) => {
+		if (i % step !== 0) return '';
+		const cx = (PAD_L + i * barPx + barPx / 2).toFixed(1);
+		return `<text x="${cx}" y="${H - 5}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${d.time}</text>`;
+	}).join('');
+
+	const yTicks  = ausNiceTicks(lo, hi, 6);
+	const yGrid   = yTicks.map(v => `<line x1="${PAD_L}" y1="${pnlY(v).toFixed(1)}" x2="${W-PAD_R}" y2="${pnlY(v).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`).join('');
+	const yLabels = yTicks.map(v => `<text x="${PAD_L-5}" y="${(pnlY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${vglFmtTick(v)}</text>`).join('');
+
+	return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">
+<rect width="${W}" height="${H}" fill="var(--surface)"/>
+${yGrid}
+<line x1="${PAD_L}" y1="${zeroY.toFixed(1)}" x2="${W-PAD_R}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1.5"/>
+${bars}${yLabels}${xLabels}
+<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${PAD_T+CH}" stroke="var(--border)" stroke-width="1"/>
+</svg>`;
+}
+
+// Chart 4: Cumulative P&L by weekday
+function ausRenderPnlByWeekday(weekdayStats) {
+	const order = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+	const data = order
+		.filter(d => weekdayStats[d])
+		.map(d => {
+			const { Long: L, Short: S } = weekdayStats[d];
+			return { day: d, pnl: (L.pnl||0)+(S.pnl||0), trades: L.TP+L.BE+L.SL+S.TP+S.BE+S.SL };
+		})
+		.filter(d => d.trades > 0);
+	if (data.length < 2) return '';
+
+	const W = 420, PAD_L = 72, PAD_R = 20, PAD_T = 14, PAD_B = 26;
+	const H = 150, CW = W - PAD_L - PAD_R, CH = H - PAD_T - PAD_B;
+	const pnlMin = Math.min(0, ...data.map(d => d.pnl));
+	const pnlMax = Math.max(0, ...data.map(d => d.pnl));
+	const pad = (pnlMax - pnlMin) * 0.06 || 50;
+	const lo = pnlMin - pad, hi = pnlMax + pad, range = hi - lo || 1;
+	const pnlY = v => PAD_T + CH * (1 - (v - lo) / range);
+	const zeroY = pnlY(0);
+	const n = data.length;
+	const barW = Math.max(8, CW / n * 0.45);
+	const bars = data.map((d, i) => {
+		const x   = PAD_L + i * CW / n + (CW/n - barW) / 2;
+		const top = Math.min(zeroY, pnlY(d.pnl)), bh = Math.max(1, Math.abs(pnlY(d.pnl) - zeroY));
+		const cx  = (PAD_L + i * CW / n + CW/n/2).toFixed(1);
+		const col = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+		return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${col}" opacity="0.75"/>
+<text x="${cx}" y="${H-8}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--text-muted)">${d.day}</text>`;
+	}).join('');
+	const yTicks  = ausNiceTicks(lo, hi, 5);
+	const yGrid   = yTicks.map(v => `<line x1="${PAD_L}" y1="${pnlY(v).toFixed(1)}" x2="${W-PAD_R}" y2="${pnlY(v).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`).join('');
+	const yLabels = yTicks.map(v => `<text x="${PAD_L-5}" y="${(pnlY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${vglFmtTick(v)}</text>`).join('');
+	return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">
+<rect width="${W}" height="${H}" fill="var(--surface)"/>
+${yGrid}
+<line x1="${PAD_L}" y1="${zeroY.toFixed(1)}" x2="${W-PAD_R}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1.5"/>
+${bars}${yLabels}
+<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${PAD_T+CH}" stroke="var(--border)" stroke-width="1"/>
+</svg>`;
+}
+
+// Chart 5: Monthly P&L from balance events
+function ausRenderPnlByMonth(balanceEvts) {
+	if (!balanceEvts || balanceEvts.length < 3) return '';
+	const monthMap = {};
+	for (let i = 1; i < balanceEvts.length; i++) {
+		const [ts, bal] = balanceEvts[i];
+		const pnl = bal - balanceEvts[i-1][1];
+		if (Math.abs(pnl) < 0.01 || !(ts instanceof Date)) continue;
+		const key = ts.getFullYear() + '-' + String(ts.getMonth()+1).padStart(2,'0');
+		monthMap[key] = (monthMap[key]||0) + pnl;
+	}
+	const months = Object.keys(monthMap).sort();
+	if (months.length < 2) return '';
+	const data = months.map(m => {
+		const [yr, mo] = m.split('-');
+		return { label: mo + '/' + yr.slice(2), pnl: monthMap[m] };
+	});
+	const W = 800, PAD_L = 72, PAD_R = 20, PAD_T = 14, PAD_B = 26;
+	const H = 180, CW = W - PAD_L - PAD_R, CH = H - PAD_T - PAD_B;
+	const pnlMin = Math.min(0, ...data.map(d => d.pnl));
+	const pnlMax = Math.max(0, ...data.map(d => d.pnl));
+	const pad = (pnlMax - pnlMin) * 0.06 || 50;
+	const lo = pnlMin - pad, hi = pnlMax + pad, range = hi - lo || 1;
+	const pnlY = v => PAD_T + CH * (1 - (v - lo) / range);
+	const zeroY = pnlY(0);
+	const n = data.length;
+	const barW = Math.max(4, CW / n * 0.72);
+	const bars = data.map((d, i) => {
+		const x   = PAD_L + i * CW / n + (CW/n - barW) / 2;
+		const top = Math.min(zeroY, pnlY(d.pnl)), bh = Math.max(1, Math.abs(pnlY(d.pnl) - zeroY));
+		const cx  = (PAD_L + i * CW / n + CW/n/2).toFixed(1);
+		const col = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+		return `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${barW.toFixed(1)}" height="${bh.toFixed(1)}" fill="${col}" opacity="0.75"/>
+${n <= 24 ? `<text x="${cx}" y="${H-8}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${d.label}</text>` : ''}`;
+	}).join('');
+	const yTicks  = ausNiceTicks(lo, hi, 5);
+	const yGrid   = yTicks.map(v => `<line x1="${PAD_L}" y1="${pnlY(v).toFixed(1)}" x2="${W-PAD_R}" y2="${pnlY(v).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`).join('');
+	const yLabels = yTicks.map(v => `<text x="${PAD_L-5}" y="${(pnlY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${vglFmtTick(v)}</text>`).join('');
+	return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">
+<rect width="${W}" height="${H}" fill="var(--surface)"/>
+${yGrid}
+<line x1="${PAD_L}" y1="${zeroY.toFixed(1)}" x2="${W-PAD_R}" y2="${zeroY.toFixed(1)}" stroke="var(--border)" stroke-width="1.5"/>
+${bars}${yLabels}
+<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${PAD_T+CH}" stroke="var(--border)" stroke-width="1"/>
+</svg>`;
+}
+
+// Chart 6: Rolling winrate over last N trades
+function ausRenderRollingWinrate(balanceEvts) {
+	if (!balanceEvts || balanceEvts.length < 2) return '';
+	const N = 20;
+	const trades = [];
+	for (let i = 1; i < balanceEvts.length; i++) {
+		const pnl = balanceEvts[i][1] - balanceEvts[i-1][1];
+		if (Math.abs(pnl) > 0.01) trades.push({ win: pnl > 0, ts: balanceEvts[i][0] });
+	}
+	if (trades.length < N + 1) return '';
+	const rolling = [];
+	for (let i = N-1; i < trades.length; i++) {
+		let wins = 0;
+		for (let j = i-N+1; j <= i; j++) if (trades[j].win) wins++;
+		rolling.push({ t: trades[i].ts.getTime(), wr: wins / N * 100 });
+	}
+	const overallWr = trades.filter(t => t.win).length / trades.length * 100;
+
+	const W = 800, PAD_L = 62, PAD_R = 20, PAD_T = 18, PAD_B = 26;
+	const H = 160, CW = W - PAD_L - PAD_R, CH = H - PAD_T - PAD_B;
+	const allT = rolling.map(p => p.t);
+	const tMin = Math.min(...allT), tMax = Math.max(...allT), tRange = tMax - tMin || 1;
+	const tX = t => PAD_L + (t - tMin) / tRange * CW;
+	const wrY = v => PAD_T + CH * (1 - v / 100);
+
+	const gridLines = [25,50,75].map(v =>
+		`<line x1="${PAD_L}" y1="${wrY(v).toFixed(1)}" x2="${W-PAD_R}" y2="${wrY(v).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>
+<text x="${PAD_L-5}" y="${(wrY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${v}%</text>`
+	).join('');
+	const owY = wrY(overallWr).toFixed(1);
+	const rollingPath = rolling.map((p,i) => `${i?'L':'M'}${tX(p.t).toFixed(1)},${wrY(p.wr).toFixed(1)}`).join('');
+	const xLabels = ausMonthStarts(tMin, tMax).map(d =>
+		`<text x="${tX(d.getTime()).toFixed(1)}" y="${H-4}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${ausMonthLabel(d)}</text>`
+	).join('');
+
+	return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">
+<rect width="${W}" height="${H}" fill="var(--surface)"/>
+${gridLines}
+<line x1="${PAD_L}" y1="${owY}" x2="${W-PAD_R}" y2="${owY}" stroke="var(--orange)" stroke-width="1.5" stroke-dasharray="5,4" opacity="0.7"/>
+<text x="${W-PAD_R-4}" y="${(parseFloat(owY)-4).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--orange)">Ø ${overallWr.toFixed(1)}%</text>
+<path d="${rollingPath}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>
+${xLabels}
+<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${PAD_T+CH}" stroke="var(--border)" stroke-width="1"/>
+</svg>`;
+}
+
+// Orchestrate all Log-Analyse charts
+function ausRenderCharts(result) {
+	const { balanceEvts, startBalance, pnlVals, weekdayStats } = result;
+	const c1 = ausRenderEquityChart(balanceEvts, startBalance);
+	const c2 = ausRenderPnlBars(balanceEvts);
+	const c3 = ausRenderPnlByTime(pnlVals);
+	const c4 = ausRenderPnlByWeekday(weekdayStats);
+	const c5 = ausRenderPnlByMonth(balanceEvts);
+	const c6 = ausRenderRollingWinrate(balanceEvts);
+	if (!c1 && !c2 && !c3 && !c4 && !c5 && !c6) return '';
+	return `
+${c1 ? `<div class="output-section">
+	<div class="section-title">📈 Balance &amp; Drawdown</div>
+	<div style="border-radius:6px;overflow:hidden;border:1px solid var(--border);">${c1}</div>
+</div>` : ''}
+${c2 ? `<div class="output-section">
+	<div class="section-title">📊 P&amp;L pro Trade</div>
+	<div style="border-radius:6px;overflow:hidden;border:1px solid var(--border);">${c2}</div>
+</div>` : ''}
+${c6 ? `<div class="output-section">
+	<div class="section-title">🎯 Rolling Winrate (letzte 20 Trades)</div>
+	<div style="border-radius:6px;overflow:hidden;border:1px solid var(--border);">${c6}</div>
+</div>` : ''}
+${c3 ? `<div class="output-section">
+	<div class="section-title">⏰ P&amp;L nach Einstiegszeit</div>
+	<div style="border-radius:6px;overflow:hidden;border:1px solid var(--border);">${c3}</div>
+</div>` : ''}
+${c4 ? `<div class="output-section">
+	<div class="section-title">📅 P&amp;L nach Wochentag</div>
+	<div style="border-radius:6px;overflow:hidden;border:1px solid var(--border);">${c4}</div>
+</div>` : ''}
+${c5 ? `<div class="output-section">
+	<div class="section-title">🗓️ P&amp;L nach Monat</div>
+	<div style="border-radius:6px;overflow:hidden;border:1px solid var(--border);">${c5}</div>
+</div>` : ''}`;
+}
+
 function renderOutput(result) {
   const {stats,ruleStats,pnlVals,weekdayStats,startBalance,balanceCurve,equityCurve,
          balanceEvts,equityEvts,candleTrades,manualCount,manualPnl,manualTrades} = result;
@@ -3818,6 +4239,8 @@ function renderOutput(result) {
       </div>` : ''}
     </div>
   </div>
+
+  ${ausRenderCharts(result)}
 
   <div class="output-section">
     <div class="section-title">⏰ Ergebnisse nach Uhrzeit</div>
@@ -3935,6 +4358,7 @@ function downloadTVScript() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── State ──────────────────────────────────────────────────────────────────
+let vglMode  = 'tv'; // 'tv' = TradingView vs cTrader | 'ct' = cTrader vs cTrader
 let vglDataA = null; // { trades, label, type:'ct'|'tv' }
 let vglDataB = null;
 
@@ -4015,10 +4439,10 @@ function tvHeaderIdx(headers) {
   const h = headers.map(x => x.toLowerCase());
   const find = (...terms) => h.findIndex(v => terms.some(t => v.includes(t.toLowerCase())));
   return {
-    iNum: find('trade #', 'trade#'),
+    iNum: find('trade #', 'trade#', 'trade-nummer', 'trade no'),
     iTyp: find('typ', 'type'),
     iDt:  find('datum und uhrzeit', 'date/time', 'date and time', 'datetime'),
-    iPnl: find('g&v netto', 'net p&l', 'profit')
+    iPnl: find('g&v netto', 'netto g&v', 'net p&l', 'profit')
   };
 }
 
@@ -4215,7 +4639,7 @@ function vglStatRow(label, a, b, field, dec, suffix) {
   </tr>`;
 }
 
-function vglDirBlock(sA, sB, dir) {
+function vglDirBlock(sA, sB, dir, lA, lB) {
   const a = sA && sA.byDir[dir];
   const b = sB && sB.byDir[dir];
   const wrA = a && a.trades ? { winrate: a.wins / a.trades * 100 } : null;
@@ -4223,7 +4647,7 @@ function vglDirBlock(sA, sB, dir) {
   return `<table class="stat-table">
     <thead><tr>
       <th style="text-align:left">${esc(dir)}</th>
-      <th>TradingView</th><th>cTrader</th><th>Δ cT−TV</th>
+      <th>${esc(lA)}</th><th>${esc(lB)}</th><th>Δ B−A</th>
     </tr></thead>
     <tbody>
       ${vglStatRow('Trades',    a, b, 'trades', 0, '')}
@@ -4295,37 +4719,37 @@ function renderCompare(tradesA, tradesB, labelA, labelB, overlap, totalA, totalB
     ${warnHtml}
     <div class="drawdown-box">
       <div class="dd-card">
-        <div class="dd-label">TradingView</div>
+        <div class="dd-label">${esc(labelA)}</div>
         <div class="dd-value c-blue">${sA ? sA.total : '–'}</div>
         <div class="dd-sub">${subA}</div>
       </div>
       <div class="dd-card">
-        <div class="dd-label">cTrader</div>
+        <div class="dd-label">${esc(labelB)}</div>
         <div class="dd-value c-blue">${sB ? sB.total : '–'}</div>
         <div class="dd-sub">${subB}</div>
       </div>
       <div class="dd-card">
-        <div class="dd-label">Winrate TV</div>
+        <div class="dd-label">Winrate A</div>
         <div class="dd-value ${sA && sA.winrate >= 50 ? 'c-green' : 'c-red'}">${sA ? vglFmtNum(sA.winrate, 1) + '%' : '–'}</div>
-        <div class="dd-sub">vs. ${sB ? vglFmtNum(sB.winrate, 1) + '%' : '–'} (cT)</div>
+        <div class="dd-sub">vs. ${sB ? vglFmtNum(sB.winrate, 1) + '%' : '–'} (B)</div>
       </div>
       <div class="dd-card">
-        <div class="dd-label">Winrate cTrader</div>
+        <div class="dd-label">Winrate B</div>
         <div class="dd-value ${sB && sB.winrate >= 50 ? 'c-green' : 'c-red'}">${sB ? vglFmtNum(sB.winrate, 1) + '%' : '–'}</div>
-        <div class="dd-sub">vs. ${sA ? vglFmtNum(sA.winrate, 1) + '%' : '–'} (TV)</div>
+        <div class="dd-sub">vs. ${sA ? vglFmtNum(sA.winrate, 1) + '%' : '–'} (A)</div>
       </div>
     </div>
   </div>
 
   <div class="output-section">
-    <div class="section-title">📈 Gesamtstatistik  TradingView / cTrader / Δ</div>
+    <div class="section-title">📈 Gesamtstatistik  ${esc(labelA)} / ${esc(labelB)} / Δ</div>
     <div style="overflow-x:auto;">
       <table class="stat-table">
         <thead><tr>
           <th style="text-align:left">Metrik</th>
-          <th>TradingView</th>
-          <th>cTrader</th>
-          <th>Δ cT−TV</th>
+          <th>${esc(labelA)}</th>
+          <th>${esc(labelB)}</th>
+          <th>Δ B−A</th>
         </tr></thead>
         <tbody>${summaryRows}</tbody>
       </table>
@@ -4335,18 +4759,199 @@ function renderCompare(tradesA, tradesB, labelA, labelB, overlap, totalA, totalB
   <div class="output-section">
     <div class="section-title">📊 Aufschlüsselung nach Richtung</div>
     <div class="pnl-cols">
-      <div class="card" style="padding:0;overflow:hidden;">${vglDirBlock(sA, sB, 'Long')}</div>
-      <div class="card" style="padding:0;overflow:hidden;">${vglDirBlock(sA, sB, 'Short')}</div>
+      <div class="card" style="padding:0;overflow:hidden;">${vglDirBlock(sA, sB, 'Long',  labelA, labelB)}</div>
+      <div class="card" style="padding:0;overflow:hidden;">${vglDirBlock(sA, sB, 'Short', labelA, labelB)}</div>
     </div>
   </div>`;
 }
 
-// Mode B: renderCompare + full chronological trade table (matched + unmatched)
+// ── Chart helpers ──────────────────────────────────────────────────────────
+
+// Build cumulative PnL time-series [{t:ms, v:USD}] sorted by entry time
+function vglEquitySeries(trades) {
+	const sorted = [...trades]
+		.filter(t => t.entryTime)
+		.sort((a, b) => a.entryTime - b.entryTime);
+	if (!sorted.length) return [];
+	const pts = [];
+	let cum = 0;
+	for (let i = 0; i < sorted.length; i++) {
+		if (i === 0) pts.push({ t: sorted[0].entryTime.getTime(), v: 0 });
+		cum += sorted[i].pnl;
+		pts.push({ t: (sorted[i].exitTime || sorted[i].entryTime).getTime(), v: cum });
+	}
+	return pts;
+}
+
+// Format value axis label: 5000→"5k", 1500→"1.5k", 300→"300"
+function vglFmtTick(v) {
+	const abs = Math.abs(v);
+	if (abs >= 1000) {
+		const k = v / 1000;
+		return (k === Math.round(k) ? k.toFixed(0) : k.toFixed(1)) + 'k';
+	}
+	return v.toFixed(0);
+}
+
+// Format timestamp as "DD.MM.YY"
+function vglFmtDateTick(ms) {
+	const d = new Date(ms);
+	return String(d.getDate()).padStart(2,'0') + '.' +
+		String(d.getMonth()+1).padStart(2,'0') + '.' +
+		String(d.getFullYear()).slice(2);
+}
+
+// ── Chart 1 + 2: Equity curves (top) + cumulative delta (bottom) ───────────
+
+function vglRenderEquityChart(serA, serB, deltaCum, lA, lB) {
+	const allT = [...serA, ...serB, ...deltaCum].map(p => p.t);
+	if (!allT.length) return '';
+
+	const W = 800, PAD_L = 62, PAD_R = 20, PAD_T = 18;
+	const H1 = 200, GAP = 40, H2 = 88, PAD_B = 26;
+	const H = PAD_T + H1 + GAP + H2 + PAD_B;
+	const CW = W - PAD_L - PAD_R;
+
+	// Shared time axis
+	const tMin = Math.min(...allT), tMax = Math.max(...allT);
+	const tRange = tMax - tMin || 1;
+	const tX = t => PAD_L + (t - tMin) / tRange * CW;
+
+	// Equity Y-axis
+	const eqVals = [...serA, ...serB].map(p => p.v);
+	const eqMin = Math.min(0, ...eqVals), eqMax = Math.max(0, ...eqVals);
+	const eqPad = (eqMax - eqMin) * 0.08 || 100;
+	const eqLo = eqMin - eqPad, eqHi = eqMax + eqPad;
+	const eqRange = eqHi - eqLo || 1;
+	const eqY = v => PAD_T + H1 * (1 - (v - eqLo) / eqRange);
+
+	// Delta panel Y-axis
+	const dTop = PAD_T + H1 + GAP;
+	const dVals = deltaCum.map(p => p.v);
+	const dMin = Math.min(0, ...(dVals.length ? dVals : [0]));
+	const dMax = Math.max(0, ...(dVals.length ? dVals : [0]));
+	const dPad = (dMax - dMin) * 0.12 || 50;
+	const dLo = dMin - dPad, dHi = dMax + dPad;
+	const dRange = dHi - dLo || 1;
+	const dY = v => dTop + H2 * (1 - (v - dLo) / dRange);
+
+	// Build SVG path string from array of {t, v}
+	const pts2path = (pts, xFn, yFn) =>
+		pts.map((p, i) => `${i ? 'L' : 'M'}${xFn(p.t).toFixed(1)},${yFn(p.v).toFixed(1)}`).join('');
+
+	// Equity grid + Y labels — round steps via ausNiceTicks
+	const eqTicks  = ausNiceTicks(eqLo, eqHi, 6);
+	const eqGrid   = eqTicks.map(v =>
+		`<line x1="${PAD_L}" y1="${eqY(v).toFixed(1)}" x2="${W-PAD_R}" y2="${eqY(v).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`
+	).join('');
+	const eqLabels = eqTicks.map(v =>
+		`<text x="${PAD_L-5}" y="${(eqY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${vglFmtTick(v)}</text>`
+	).join('');
+
+	// Delta fill + line
+	let deltaFill = '', deltaPath = '';
+	const finalDelta = deltaCum.length ? deltaCum[deltaCum.length-1].v : 0;
+	const deltaCol   = finalDelta >= 0 ? 'var(--green)' : 'var(--red)';
+	if (deltaCum.length > 1) {
+		const coords = deltaCum.map(p => `${tX(p.t).toFixed(1)},${dY(p.v).toFixed(1)}`).join(' ');
+		const x0 = tX(deltaCum[0].t).toFixed(1);
+		const xN = tX(deltaCum[deltaCum.length-1].t).toFixed(1);
+		const z  = dY(0).toFixed(1);
+		deltaFill = `<polygon points="${coords} ${xN},${z} ${x0},${z}" fill="${deltaCol}" opacity="0.12"/>`;
+		deltaPath = `<path d="${pts2path(deltaCum, tX, dY)}" fill="none" stroke="${deltaCol}" stroke-width="2" stroke-linejoin="round"/>`;
+	}
+
+	// Delta Y labels + grid — round steps
+	const dTicks  = ausNiceTicks(dLo, dHi, 4);
+	const dGrid   = dTicks.map(v =>
+		`<line x1="${PAD_L}" y1="${dY(v).toFixed(1)}" x2="${W-PAD_R}" y2="${dY(v).toFixed(1)}" stroke="var(--border)" stroke-width="1" opacity="0.5"/>`
+	).join('');
+	const dLabels = dTicks.map(v =>
+		`<text x="${PAD_L-5}" y="${(dY(v)+4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--text-muted)">${vglFmtTick(v)}</text>`
+	).join('');
+
+	// Month-start vertical lines + x-axis labels
+	const mStarts    = ausMonthStarts(tMin, tMax);
+	const monthLines = mStarts.map(d => {
+		const x = tX(d.getTime()).toFixed(1);
+		return `<line x1="${x}" y1="${PAD_T}" x2="${x}" y2="${dTop+H2}" stroke="var(--border)" stroke-width="1" opacity="0.4"/>`;
+	}).join('');
+	const xLabels = mStarts.map(d => {
+		const x = tX(d.getTime()).toFixed(1);
+		return `<text x="${x}" y="${H-4}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${ausMonthLabel(d)}</text>`;
+	}).join('');
+
+	// Legend (top-right), truncate long filenames
+	const legA = lA.length > 18 ? lA.slice(0,16)+'…' : lA;
+	const legB = lB.length > 18 ? lB.slice(0,16)+'…' : lB;
+	const legX1 = W - PAD_R - 178, legX2 = W - PAD_R - 153, legTx = W - PAD_R - 148;
+
+	return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block;" xmlns="http://www.w3.org/2000/svg">
+<rect width="${W}" height="${H}" fill="var(--surface)"/>
+${monthLines}
+${eqGrid}
+<line x1="${PAD_L}" y1="${eqY(0).toFixed(1)}" x2="${W-PAD_R}" y2="${eqY(0).toFixed(1)}" stroke="var(--border)" stroke-width="1.5"/>
+${eqLabels}
+${serA.length>1 ? `<path d="${pts2path(serA,tX,eqY)}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>` : ''}
+${serB.length>1 ? `<path d="${pts2path(serB,tX,eqY)}" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linejoin="round"/>` : ''}
+<text x="${PAD_L+4}" y="${PAD_T+13}" font-size="11" fill="var(--text-muted)">Kum. P&amp;L (USD)</text>
+<line x1="${legX1}" y1="${PAD_T+10}" x2="${legX2}" y2="${PAD_T+10}" stroke="var(--blue)" stroke-width="2"/>
+<text x="${legTx}" y="${PAD_T+14}" font-size="11" fill="var(--text-muted)">${esc(legA)}</text>
+<line x1="${legX1}" y1="${PAD_T+26}" x2="${legX2}" y2="${PAD_T+26}" stroke="var(--orange)" stroke-width="2"/>
+<text x="${legTx}" y="${PAD_T+30}" font-size="11" fill="var(--text-muted)">${esc(legB)}</text>
+<text x="${PAD_L+4}" y="${dTop-9}" font-size="11" fill="var(--text-muted)">Δ kumuliert (B−A)</text>
+<line x1="${PAD_L}" y1="${dY(0).toFixed(1)}" x2="${W-PAD_R}" y2="${dY(0).toFixed(1)}" stroke="var(--border)" stroke-width="1.5"/>
+${dGrid}${deltaFill}
+${deltaPath}
+${dLabels}
+${xLabels}
+<line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${dTop+H2}" stroke="var(--border)" stroke-width="1"/>
+</svg>`;
+}
+
+
+// ── Chart section orchestrator ─────────────────────────────────────────────
+
+function vglRenderCharts(tradesA, tradesB, matched, lA, lB) {
+	const serA = vglEquitySeries(tradesA);
+	const serB = vglEquitySeries(tradesB);
+
+	// Cumulative delta per matched trade, sorted by entry time, anchored at 0
+	const deltaSorted = matched
+		.filter(({tv}) => tv.entryTime)
+		.sort((a, b) => a.tv.entryTime - b.tv.entryTime);
+	const deltaCum = [];
+	let cumDelta = 0;
+	for (let i = 0; i < deltaSorted.length; i++) {
+		const {tv, ct} = deltaSorted[i];
+		if (i === 0) deltaCum.push({ t: tv.entryTime.getTime(), v: 0 });
+		cumDelta += ct.pnl - tv.pnl;
+		deltaCum.push({ t: (tv.exitTime || tv.entryTime).getTime(), v: cumDelta });
+	}
+
+	const eqHtml = vglRenderEquityChart(serA, serB, deltaCum, lA, lB);
+	if (!eqHtml) return '';
+
+	return `
+<div class="output-section">
+	<div class="section-title">📈 Equity-Kurven &amp; Δ-Verlauf</div>
+	<div style="border-radius:6px;overflow:hidden;border:1px solid var(--border);">
+		${eqHtml}
+	</div>
+</div>`;
+}
+
+// Full comparison: summary stats + chronological trade table (matched + unmatched)
 function renderCompareModeB(tradesTV, tradesCT, labelTV, labelCT) {
   const matchResult = matchVglTrades(tradesTV, tradesCT);
   const { matched, onlyTV, onlyCT } = matchResult;
 
-  const base = renderCompare(tradesTV, tradesCT, labelTV, labelCT);
+  // Short badge labels: known names get abbreviations, filenames get A/B
+  const shA = labelTV === 'TradingView' ? 'TV' : 'A';
+  const shB = labelCT === 'cTrader'     ? 'cT' : 'B';
+
+  const base         = renderCompare(tradesTV, tradesCT, labelTV, labelCT);
+  const chartsSection = vglRenderCharts(tradesTV, tradesCT, matched, labelTV, labelCT);
 
   // Helper: format entry time
   const fmt = d => d ? d.toLocaleString('de-DE',
@@ -4387,7 +4992,7 @@ function renderCompareModeB(tradesTV, tradesCT, labelTV, labelCT) {
         <td>${colorPnl(tv.pnl)}</td>
         <td class="c-muted">–</td>
         <td class="c-muted">–</td>
-        <td><span class="badge badge-missing">nur TV</span></td>
+        <td><span class="badge badge-missing">nur ${shA}</span></td>
       </tr>`;
     }
     // onlyCT
@@ -4398,7 +5003,7 @@ function renderCompareModeB(tradesTV, tradesCT, labelTV, labelCT) {
       <td class="c-muted">–</td>
       <td>${colorPnl(ct.pnl)}</td>
       <td class="c-muted">–</td>
-      <td><span class="badge badge-default">nur cT</span></td>
+      <td><span class="badge badge-default">nur ${shB}</span></td>
     </tr>`;
   }).join('');
 
@@ -4409,17 +5014,17 @@ function renderCompareModeB(tradesTV, tradesCT, labelTV, labelCT) {
       <div class="dd-card">
         <div class="dd-label">Match</div>
         <div class="dd-value c-green">${matched.length}</div>
-        <div class="dd-sub">von ${tradesTV ? tradesTV.length : 0} TV-Trades</div>
+        <div class="dd-sub">von ${tradesTV ? tradesTV.length : 0} Trades (A)</div>
       </div>
       <div class="dd-card">
-        <div class="dd-label">Nur in TradingView</div>
+        <div class="dd-label">Nur in ${esc(labelTV)}</div>
         <div class="dd-value ${onlyTV.length ? 'c-yellow' : 'c-muted'}">${onlyTV.length}</div>
-        <div class="dd-sub">kein Match im Backtest</div>
+        <div class="dd-sub">kein Match in ${esc(labelCT)}</div>
       </div>
       <div class="dd-card">
-        <div class="dd-label">Nur in cTrader</div>
+        <div class="dd-label">Nur in ${esc(labelCT)}</div>
         <div class="dd-value ${onlyCT.length ? 'c-yellow' : 'c-muted'}">${onlyCT.length}</div>
-        <div class="dd-sub">kein Match in TV</div>
+        <div class="dd-sub">kein Match in ${esc(labelTV)}</div>
       </div>
     </div>
     ${allRows.length > 0 ? `
@@ -4428,8 +5033,8 @@ function renderCompareModeB(tradesTV, tradesCT, labelTV, labelCT) {
         <thead><tr>
           <th style="text-align:left">Einstieg</th>
           <th style="text-align:left">Richtung</th>
-          <th>P&amp;L TradingView</th>
-          <th>P&amp;L cTrader</th>
+          <th>P&amp;L ${esc(labelTV)}</th>
+          <th>P&amp;L ${esc(labelCT)}</th>
           <th>Δ</th>
           <th>Status</th>
         </tr></thead>
@@ -4438,7 +5043,7 @@ function renderCompareModeB(tradesTV, tradesCT, labelTV, labelCT) {
     </div>` : ''}
   </div>`;
 
-  return base + matchSection;
+  return base + chartsSection + matchSection;
 }
 
 
@@ -4527,6 +5132,43 @@ function vglHandleFile(file, side) {
 }
 
 
+// ── Mode switch ───────────────────────────────────────────────────────────
+
+// Switch between TradingView-vs-cTrader and cTrader-vs-cTrader; updates UI + resets wizard
+function vglSetMode(mode) {
+  vglMode = mode;
+  const isTv = mode === 'tv';
+
+  // Toggle button styles
+  document.getElementById('vgl-btn-tv').className = isTv ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('vgl-btn-ct').className = isTv ? 'btn btn-secondary' : 'btn btn-primary';
+
+  // Step 1 card content
+  document.getElementById('vgl-p1-title').textContent = isTv
+    ? '📈 TradingView Export hochladen' : '📋 cTrader Log A hochladen';
+  document.getElementById('vgl-p1-ext').textContent   = isTv ? '.csv / .xlsx' : '.txt';
+  document.getElementById('vgl-p1-desc').textContent  = isTv
+    ? 'Exportiere die Trade-Liste aus dem TradingView Strategietester als CSV oder XLSX.'
+    : 'Lade das erste cTrader-Log — z. B. den Backtest auf Broker A.';
+
+  // Step 2 card content
+  document.getElementById('vgl-p2-title').textContent = isTv
+    ? '📋 cTrader Backtest-Log hochladen' : '📋 cTrader Log B hochladen';
+  document.getElementById('vgl-p2-desc').textContent  = isTv
+    ? 'Lade die Log-Datei aus dem cTrader Backtest — dieselbe Strategie, derselbe Zeitraum wie im TV-Export.'
+    : 'Lade das zweite cTrader-Log — z. B. den Backtest auf Broker B.';
+
+  // Wizard step labels
+  document.getElementById('vgl-s1-label').textContent = isTv ? 'TV-Export' : 'Log A';
+  document.getElementById('vgl-s2-label').textContent = isTv ? 'cTrader-Log' : 'Log B';
+
+  // File input accept attribute
+  document.getElementById('vglFileA').accept = isTv ? '.csv,.xls,.xlsx' : '.txt,.log';
+
+  // Reset wizard to step 1
+  vglGoTo(1);
+}
+
 // ── Wizard navigation ─────────────────────────────────────────────────────
 
 // Advance to (or go back to) a given step; resets data for steps not yet reached
@@ -4545,12 +5187,18 @@ function vglGoTo(step) {
   // Clear data and drop zones for the step we're returning to
   if (step <= 1) {
     vglDataA = null;
-    vglResetZone('vglDropA', 'vglFileA', '📈', 'TV-Export hierher ziehen', '.csv / .xlsx');
+    const isTv = vglMode === 'tv';
+    vglResetZone('vglDropA', 'vglFileA',
+      isTv ? '📈' : '📋',
+      isTv ? 'TV-Export hierher ziehen' : 'cTrader Log A hierher ziehen',
+      isTv ? '.csv / .xlsx' : '.txt');
     document.getElementById('vglFileA').value = '';
   }
   if (step <= 2) {
     vglDataB = null;
-    vglResetZone('vglDropB', 'vglFileB', '📋', 'Backtest-Log hierher ziehen', '.txt');
+    const isTv2 = vglMode === 'tv';
+    vglResetZone('vglDropB', 'vglFileB', '📋',
+      isTv2 ? 'Backtest-Log hierher ziehen' : 'cTrader Log B hierher ziehen', '.txt');
     document.getElementById('vglFileB').value = '';
     document.getElementById('vglOutput').innerHTML = '';
   }
@@ -4574,10 +5222,12 @@ function vglTryRun() {
   }
 
   // Both sides loaded — compute and show the result
+  // TV mode uses generic "TradingView"/"cTrader" labels; cT mode uses filenames
   showMsg('vglMsg', '', '');
   try {
-    const html = renderCompareModeB(vglDataA.trades, vglDataB.trades,
-                                    vglDataA.label, vglDataB.label);
+    const labelA = vglMode === 'tv' ? 'TradingView' : vglDataA.label;
+    const labelB = vglMode === 'tv' ? 'cTrader'     : vglDataB.label;
+    const html = renderCompareModeB(vglDataA.trades, vglDataB.trades, labelA, labelB);
     document.getElementById('vglOutput').innerHTML = html;
     vglGoTo(3);
     document.getElementById('vgl-p3').scrollIntoView({ behavior: 'smooth', block: 'start' });
