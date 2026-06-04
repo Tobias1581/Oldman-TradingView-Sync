@@ -3239,8 +3239,8 @@ function parseLog(text) {
   const closedDetails = {};
 
   const rxTs      = /^(\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}:\d{2}\.\d{3})/;
-  const rxStartBal= /(?:Start-)?Balance\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*(?:USD)?/;
-  const rxEquity  = /Aktuelles Equity\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*USD/;
+  const rxStartBal= /(?:Start-)?Balance\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*(?:[A-Z]{3})?/;
+  const rxEquity  = /Aktuelles Equity\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*[A-Z]{3}/;
   const rxClose   = /Close=([+-]?\d+(?:\.\d{3})*(?:,\d+)?)/;
   const rxKerze   = /Kerze Berlin\s*:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/;
   const rxKDaten  = /Kerzendaten\s*:\s*Open\s+([\d.,]+)\s+High\s+([\d.,]+)\s+Low\s+([\d.,]+)\s+Close\s+([\d.,]+)/;
@@ -3256,7 +3256,7 @@ function parseLog(text) {
   const rxVolume  = /Volumen\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)\s*Lots/;
   const rxEntry   = /Entry\s*:\s*([+-]?\d+(?:\.\d{3})*(?:,\d+)?)/;
   const rxGrund   = /Grund\s*:\s*(Take-Profit|Stop-Loss|Manuell\/Bot)/;
-  const rxPnl     = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*(?:USD|EUR|GBP|CHF)/;
+  const rxPnl     = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*[A-Z]{3}/;
 
   for (const line of lines) {
     const lineTs = parseTs(line);
@@ -3604,7 +3604,7 @@ function renderPnlOverview(pnlVals) {
       <td colspan="2">${colorPnl(sumNeg)} (Sum-)</td>
     </tr>
     <tr class="total-row">
-      <td colspan="5" style="text-align:center;">Netto: ${colorPnl(sumPos+sumNeg)} USD</td>
+      <td colspan="5" style="text-align:center;">Netto: ${colorPnl(sumPos+sumNeg)}</td>
     </tr>`;
     html += `<div><div class="section-title">${dir}</div>
       <div class="table-wrap"><table class="stat-table">
@@ -3636,7 +3636,7 @@ function renderPnlByTime(pnlVals, stats) {
         <td>${colorPnl(net)}</td>
       </tr>`;
     }
-    rows+=`<tr class="total-row"><td style="text-align:left">Gesamt</td><td colspan="3"></td><td>${colorPnl(total)} USD</td></tr>`;
+    rows+=`<tr class="total-row"><td style="text-align:left">Gesamt</td><td colspan="3"></td><td>${colorPnl(total)}</td></tr>`;
     html+=`<div><div class="section-title">${dir}</div>
       <div class="table-wrap"><table class="stat-table">
         <thead><tr><th style="text-align:left">Open</th><th>Win</th><th>TSL</th><th>SL</th><th>Netto</th></tr></thead>
@@ -3659,7 +3659,7 @@ function renderPnlByTime(pnlVals, stats) {
       <td>${colorPnl(net)}</td>
     </tr>`;
   }
-  crows+=`<tr class="total-row"><td style="text-align:left">Gesamt</td><td colspan="3"></td><td>${colorPnl(ctotal)} USD</td></tr>`;
+  crows+=`<tr class="total-row"><td style="text-align:left">Gesamt</td><td colspan="3"></td><td>${colorPnl(ctotal)}</td></tr>`;
   html+=`<div><div class="section-title">Gesamt</div>
     <div class="table-wrap"><table class="stat-table">
       <thead><tr><th style="text-align:left">Open</th><th>Win</th><th>TSL</th><th>SL</th><th>Netto</th></tr></thead>
@@ -3843,7 +3843,7 @@ function ausNiceTicks(lo, hi, targetTicks) {
 	return ticks;
 }
 
-// Chart 1: Balance per trade (top) + Drawdown in USD (bottom)
+// Chart 1: Balance per trade (top) + Drawdown in (bottom)
 // Uses balanceEvts (one point per closed trade) for a jagged, trade-by-trade view
 function ausRenderEquityChart(balanceEvts, startBalance) {
 	if (!balanceEvts || balanceEvts.length < 2) return '';
@@ -3913,8 +3913,8 @@ function ausRenderEquityChart(balanceEvts, startBalance) {
 ${monthLines}
 ${bGrid}${bLabels}
 <path d="${bal_d}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>
-<text x="${PAD_L+4}" y="${PAD_T+14}" font-size="11" fill="var(--text-muted)">Balance (USD)</text>
-<text x="${PAD_L+4}" y="${dTop-9}" font-size="11" fill="var(--text-muted)">Drawdown (USD)</text>
+<text x="${PAD_L+4}" y="${PAD_T+14}" font-size="11" fill="var(--text-muted)">Balance</text>
+<text x="${PAD_L+4}" y="${dTop-9}" font-size="11" fill="var(--text-muted)">Drawdown</text>
 <line x1="${PAD_L}" y1="${ddY(0).toFixed(1)}" x2="${W-PAD_R}" y2="${ddY(0).toFixed(1)}" stroke="var(--border)" stroke-width="1.5"/>
 ${ddGrid}${ddFill}${ddLine}${ddLabels}${xLabels}
 <line x1="${PAD_L}" y1="${PAD_T}" x2="${PAD_L}" y2="${dTop+H2}" stroke="var(--border)" stroke-width="1"/>
@@ -4224,17 +4224,17 @@ function renderOutput(result) {
       </div>
       <div class="dd-card">
         <div class="dd-label">Max Drawdown Balance</div>
-        <div class="dd-value ${balDdAbs>0?'c-red':'c-green'}">${balDdAbs.toFixed(2)} USD</div>
+        <div class="dd-value ${balDdAbs>0?'c-red':'c-green'}">${balDdAbs.toFixed(2)}</div>
         <div class="dd-sub">${balDdPct.toFixed(2)}%</div>
       </div>
       <div class="dd-card">
         <div class="dd-label">Max Drawdown Equity</div>
-        <div class="dd-value ${eqDdAbs>0?'c-red':'c-green'}">${eqDdAbs.toFixed(2)} USD</div>
+        <div class="dd-value ${eqDdAbs>0?'c-red':'c-green'}">${eqDdAbs.toFixed(2)}</div>
         <div class="dd-sub">${eqDdPct.toFixed(2)}%</div>
       </div>
       ${daily ? `<div class="dd-card">
         <div class="dd-label">Daily DD (worst)</div>
-        <div class="dd-value c-yellow">${daily.worstUsed.toFixed(2)} USD</div>
+        <div class="dd-value c-yellow">${daily.worstUsed.toFixed(2)}</div>
         <div class="dd-sub">${daily.worstPct.toFixed(2)}% am ${daily.worstDay}</div>
       </div>` : ''}
     </div>
@@ -4382,7 +4382,7 @@ function extractTrades(text) {
   const rxClose = /Position #(\d+) geschlossen/;
   const rxDir   = /Richtung\s*:\s*(Long|Short)/;
   const rxGrund = /Grund\s*:\s*(Take-Profit|Stop-Loss|Manuell\/Bot)/;
-  const rxPnl   = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*(?:USD|EUR|GBP|CHF)/;
+  const rxPnl   = /P&L \(Netto\)\s*:\s*([+-]?\d+(?:[.,]\d+)?)\s*[A-Z]{3}/;
 
   const posEntryTime = {};
   let inClosed = false, curId = null, curTrade = null;
@@ -4653,7 +4653,7 @@ function vglDirBlock(sA, sB, dir, lA, lB) {
       ${vglStatRow('Trades',    a, b, 'trades', 0, '')}
       ${vglStatRow('Wins',      a, b, 'wins',   0, '')}
       ${vglStatRow('Winrate',   wrA, wrB, 'winrate', 1, '%')}
-      ${vglStatRow('Netto P&L', a, b, 'pnl', 2, ' USD')}
+      ${vglStatRow('Netto P&L', a, b, 'pnl', 2, '')}
     </tbody>
   </table>`;
 }
@@ -4686,8 +4686,8 @@ function renderCompare(tradesA, tradesB, labelA, labelB, overlap, totalA, totalB
     vglStatRow('Losses',                         sA, sB, 'losses',        0, ''),
     vglStatRow('Winrate',                        sA, sB, 'winrate',       1, '%'),
     vglStatRow('Profit Factor',                  sA, sB, 'profitFactor',  2, ''),
-    vglStatRow('Netto P&L',                      sA, sB, 'netPnl',        2, ' USD'),
-    vglStatRow('Max Drawdown',                   sA, sB, 'maxDd',         2, ' USD'),
+    vglStatRow('Netto P&L',                      sA, sB, 'netPnl',        2, ''),
+    vglStatRow('Max Drawdown',                   sA, sB, 'maxDd',         2, ''),
   ].join('');
 
   // Context line under each card: "5 von 87 · 22.05. – 25.05.2026"
@@ -4894,7 +4894,7 @@ ${eqGrid}
 ${eqLabels}
 ${serA.length>1 ? `<path d="${pts2path(serA,tX,eqY)}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round"/>` : ''}
 ${serB.length>1 ? `<path d="${pts2path(serB,tX,eqY)}" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linejoin="round"/>` : ''}
-<text x="${PAD_L+4}" y="${PAD_T+13}" font-size="11" fill="var(--text-muted)">Kum. P&amp;L (USD)</text>
+<text x="${PAD_L+4}" y="${PAD_T+13}" font-size="11" fill="var(--text-muted)">Kum. P&amp;L</text>
 <line x1="${legX1}" y1="${PAD_T+10}" x2="${legX2}" y2="${PAD_T+10}" stroke="var(--blue)" stroke-width="2"/>
 <text x="${legTx}" y="${PAD_T+14}" font-size="11" fill="var(--text-muted)">${esc(legA)}</text>
 <line x1="${legX1}" y1="${PAD_T+26}" x2="${legX2}" y2="${PAD_T+26}" stroke="var(--orange)" stroke-width="2"/>
@@ -5105,7 +5105,7 @@ function vglHandleFile(file, side) {
         const trades = parseTVCsv(e.target.result);
         if (!trades || !trades.length) {
           showMsg('vglMsg',
-            'Keine Trades im CSV. Spalten prüfen: Typ, Datum und Uhrzeit, G&V netto USD.', 'error');
+            'Keine Trades im CSV. Spalten prüfen: Typ, Datum und Uhrzeit, G&V netto.', 'error');
           return;
         }
         if (side === 'A') vglDataA = { trades, label: file.name, type: 'tv' };
