@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.08
+// @version      4.081
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -403,7 +403,7 @@
             const targetVer = detectTvVersion(currentTv);
             log(`Version check: saved=${savedVer}, target=${targetVer}`);
             if (savedVer !== targetVer) {
-                alert(`⚠ Versions-Konflikt!\n\nDie kopierten Einstellungen stammen von Strategietester v${savedVer}, du verwendest aber Alarm v${targetVer}.\n\nErlaubte Kombinationen:\n• Strategietester v3.1 → Alarm v3.1\n• Strategietester v4.0 → Alarm v4.0`);
+                alert(`⚠ Versionskonflikt!\n\nDie kopierten Einstellungen stammen von Oldman Strategie v${savedVer}, du verwendest aber Oldman Alarm v${targetVer}.\n\nErlaubte Kombinationen:\n• Oldman Strategie v3.1 → Oldman Alarm v3.1\n• Oldman Strategie v4.0 → Oldman Alarm v4.0`);
                 return 0;
             }
         }
@@ -1139,7 +1139,7 @@
             URL.revokeObjectURL(url);
 
             log("=== CTRADER EXPORT COMPLETE ===");
-            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für cBot v${targetBotVer}\n\n⚠ Bitte manuell in cTrader setzen:\n- WE-Endzeit (WeekendCloseTimeStr)\n- Abend-Endzeit (EveningCloseTimeStr)\n- Feiertag-Schließzeit (HolidayCloseTimeStr)\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)`);
+            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für Oldman Trader v${targetBotVer}\n\n⚠ Bitte manuell in cTrader setzen:\n- WE-Endzeit (WeekendCloseTimeStr)\n- Abend-Endzeit (EveningCloseTimeStr)\n- Feiertag-Schließzeit (HolidayCloseTimeStr)\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)`);
         } catch (err) {
             log(`⛔ EXPORT FEHLER: ${err.message}`, err);
             alert(`⛔ cTrader Export fehlgeschlagen!\n\n${err.message}\n\nDetails in der Browser-Konsole (F12).`);
@@ -1424,7 +1424,7 @@
                     log(`Detected cBot version in file: ${botVer}`);
                     const expectedBotVer = tvVer === '3.1' ? '3.14' : '4.0';
                     if (botVer !== expectedBotVer) {
-                        alert(`⚠ Versions-Konflikt!\n\nDu verwendest Strategietester/Alarm v${tvVer}, aber die Datei stammt von cBot v${botVer}.\n\nErlaubte Kombinationen:\n• Strategietester/Alarm v3.1  →  cBot v3.14\n• Strategietester/Alarm v4.0  →  cBot v4.0\n\nBitte passende Datei laden.`);
+                        alert(`⚠ Versionskonflikt!\n\nDu verwendest Oldman Strategie v${tvVer}, aber die Datei stammt von Oldman Trader v${botVer}.\n\nErlaubte Kombinationen:\n• Oldman Strategie v3.1  →  Oldman Trader v3.14\n• Oldman Strategie v4.0  →  Oldman Trader v4.0\n\nBitte passende Datei laden.`);
                         resolve(0);
                         return;
                     }
