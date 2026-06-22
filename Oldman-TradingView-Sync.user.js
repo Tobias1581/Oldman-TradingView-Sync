@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.05
+// @version      4.07
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -115,6 +115,10 @@
 
         const alarmSettings = {};
 
+        const tvVer = detectTvVersion(settings);
+        log(`Detected TiL version: ${tvVer}`);
+
+        // Gemeinsame Felder – identisch in v3.1 und v4.0
         const fieldsToExport = [
             // 01 - Basis
             "Oldman Gold Long ?",
@@ -138,21 +142,19 @@
             "Ausschlusszeiten Long", "Zeit Short",
             "Ausschlusstage Long", "Tage Short",
 
-            // 05 - Kerzenform
+            // 04 - Kerzenform
             "Kerze min (Pts)", "Kerze max (Pts)",
             "Trend-Docht (%)", "Gegen-Docht (%)",
             "Körper min (%)", "Engulfing Growth (%)",
 
-            // 06 - Trendfilter
-            "Trendfilter Long ?", "Trendfilter Short ?",
-            "MA Trend Long 1", "MA Trend Long 2", "MA Trend Long 3",
-            "MA Trend Short 1", "MA Trend Short 2", "MA Trend Short 3",
+            // 05 - MA-Mode (gleiche Bezeichnung in v3.1 und v4.0)
+            "Gleitender Durchschnitt MA-Mode",
 
-            // 07 - Blockfilter
-            "Blockfilter Long Mode", "MA Block Fast Long", "MA Block Slow Long",
-            "Blockfilter Short Mode", "MA Block Fast Short", "MA Block Slow Short",
+            // 06 - Blockfilter-Mode (Label identisch in v3.1 und v4.0)
+            "Blockfilter Long Mode",
+            "Blockfilter Short Mode",
 
-            // 08 - Indikatoren
+            // 07 - Indikatoren (Bezeichnungen identisch)
             "RSI-Filter Long ?", "RSI-Filter Short ?", "RSI-Länge",
             "RSI Long: min", "RSI Long: max",
             "RSI Short: min", "RSI Short: max",
@@ -160,9 +162,46 @@
             "MACD-Fast", "MACD-Slow", "MACD-Signal",
             "StochRSI-Filter Long ?", "StochRSI-Filter Short ?",
             "SRSI Max (Long)", "SRSI Min (Short)",
-            "ADX-Filter Long ?", "ADX-Filter Short ?", "ADX Periode", "ADX Minimum",
-            "ATR-Filter Long ?", "ATR-Filter Short ?", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"
         ];
+
+        // Versionsspezifische Felder anhängen
+        if (tvVer === '3.1') {
+            fieldsToExport.push(
+                // Trendfilter v3.1 (kein ?)
+                "Trendfilter Long", "Trendfilter Short",
+                "MA1", "MA2",           // MA Trend Long
+                "MA3", "MA4",           // MA Trend Short
+                // Blockfilter-MAs v3.1
+                "MA Fast Long", "MA Slow Long",
+                "MA Fast Short", "MA Slow Short",
+                // Sortierfilter v3.1
+                "Sortierfilter: Long 20 > 50 > 200", "Short 200 > 50 > 20",
+                "Sortierfilter: Long 10 > 20 > 50",  "Short 50 > 20 > 10",
+                // SL-Modus und ATR-SL v3.1
+                "SL Modus", "ATR-Periode", "ATR-Multiplikator",
+                // SL Nachziehen Trailing (v3.1 mit Pair-Strings)
+                "SL Nachziehen Long ?", "SL Nachziehen Short ?",
+                "1. Trigger (R)", "1. Schritt (R)",
+                "2. Trigger (R)", "2. Schritt (R)",
+                "3. Trigger (R)", "3. Schritt (R)",
+                "4. Trigger (R)", "4. Schritt (R)",
+                "5. Trigger (R)", "5. Schritt (R)",
+                "6. Trigger (R)", "6. Schritt (R)"
+            );
+        } else {
+            fieldsToExport.push(
+                // Trendfilter v4.0 (mit ?)
+                "Trendfilter Long ?", "Trendfilter Short ?",
+                "MA Trend Long 1", "MA Trend Long 2", "MA Trend Long 3",
+                "MA Trend Short 1", "MA Trend Short 2", "MA Trend Short 3",
+                // Blockfilter-MAs v4.0
+                "MA Block Fast Long", "MA Block Slow Long",
+                "MA Block Fast Short", "MA Block Slow Short",
+                // ADX/ATR-Filter v4.0 (silent, weil im UI ausgeblendet)
+                "ADX-Filter Long ?", "ADX-Filter Short ?", "ADX Periode", "ADX Minimum",
+                "ATR-Filter Long ?", "ATR-Filter Short ?", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"
+            );
+        }
 
         fieldsToExport.forEach(field => {
             if (settings[field] !== undefined) {
@@ -175,16 +214,21 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(alarmSettings));
         log(`Saved ${Object.keys(alarmSettings).length} settings to localStorage`);
 
-        const missing = fieldsToExport.filter(f => settings[f] === undefined);
-        log(`Export Summary: ${Object.keys(alarmSettings).length} exported, ${missing.length} missing`);
+        // Felder die still übersprungen werden (im UI ausgeblendet oder nur für cTrader-Export)
+        const silentFields = [
+            "Gleitender Durchschnitt MA-Mode",
+            "ADX-Filter Long ?", "ADX-Filter Short ?", "ADX Periode", "ADX Minimum",
+            "ATR-Filter Long ?", "ATR-Filter Short ?", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"
+        ];
 
-        if (missing.length > 0) {
-        }
+        const missing = fieldsToExport.filter(f => settings[f] === undefined);
+        const missingVisible = missing.filter(f => !silentFields.includes(f));
+        log(`Export Summary: ${Object.keys(alarmSettings).length} exported, ${missing.length} missing (${missing.length - missingVisible.length} silent)`);
 
         log("=== COPY TO ALARM COMPLETE ===");
 
-        if (missing.length > 0) {
-            alert(`Export abgeschlossen!\n\n✓ ${Object.keys(alarmSettings).length} Settings exportiert\n⚠ Nicht gefunden (${missing.length}):\n${missing.map(f => "  - " + f).join("\n")}`);
+        if (missingVisible.length > 0) {
+            alert(`Export abgeschlossen!\n\n✓ ${Object.keys(alarmSettings).length} Settings exportiert\n⚠ Nicht gefunden (${missingVisible.length}):\n${missingVisible.map(f => "  - " + f).join("\n")}`);
         }
 
         return Object.keys(alarmSettings).length;
@@ -534,8 +578,24 @@
     }
 
     // ============================================================
+    //  VERSION DETECTION
+    // ============================================================
+    function detectVersion(config) {
+        if (config.MA1LenLong !== undefined) return '4.0';
+        if (config.MA1Len     !== undefined) return '3.14';
+        return '4.0';
+    }
+
+    // Erkennt die TiL-Version anhand der im Dialog vorhandenen Felder
+    // v3.1: hat "Backtest auf dem M15 ?" — v4.0 hat das nicht mehr
+    function detectTvVersion(tv) {
+        if (tv["Backtest auf dem M15 ?"] !== undefined) return '3.1';
+        return '4.0';
+    }
+
+    // ============================================================
     //  CTRADER EXPORT - BASE PARAMETERS
-    //  Enthält alle Felder der neuen cbotset-Struktur v3.1
+    //  Enthält alle Felder für v3.14 und v4.0
     // ============================================================
     function buildBaseParameters() {
         return {
@@ -595,6 +655,11 @@
             Step3SLRLong: 2.0,
             Step4TriggerRLong: 4.0,
             Step4SLRLong: 3.0,
+            // v3.14 compat: Stufen 5 & 6
+            Step5TriggerRLong: 5.0,
+            Step5SLRLong: 4.0,
+            Step6TriggerRLong: 6.0,
+            Step6SLRLong: 5.0,
 
             TrailingEnabledShort: false,
             Step1TriggerRShort: 1.0,
@@ -605,6 +670,11 @@
             Step3SLRShort: 2.0,
             Step4TriggerRShort: 4.0,
             Step4SLRShort: 3.0,
+            // v3.14 compat: Stufen 5 & 6
+            Step5TriggerRShort: 5.0,
+            Step5SLRShort: 4.0,
+            Step6TriggerRShort: 6.0,
+            Step6SLRShort: 5.0,
 
             // --- Session ---
             SessionWindowStr: "05:00-21:00",
@@ -642,6 +712,20 @@
             MA1LenShort: 200,
             MA2LenShort: 50,
             MA3LenShort: 0,
+            // v3.14 compat: alte MA-Property-Namen
+            MA1Len: 50,
+            MA2Len: 200,
+            MA3Len: 200,
+            MA4Len: 50,
+            UseMASort2050200L: false,
+            UseMASort2050200S: false,
+            UseMASort102050L: false,
+            UseMASort102050S: false,
+            // v3.14 compat: SL-Modus und SL-ATR
+            SLMode: 0,
+            AtrPeriod: 14,
+            AtrMultiplier: 1.0,
+            SLHighLowMode: 1,
 
             BlockModeL: 0,
             BlockMAFastL: 9,
@@ -789,7 +873,8 @@
             if (stepPair.right !== null) p[`Step${idx}SLRShort`]      = stepPair.right;
         }
 
-        for (let i = 1; i <= 4; i++) mapStep(i);
+        const maxStep = tvVer === '3.1' ? 6 : 4;
+        for (let i = 1; i <= maxStep; i++) mapStep(i);
 
         // Session
         if (!tv["Session-Fenster"] || tv["Session-Fenster"].trim() === "") {
@@ -849,26 +934,65 @@
             if (engulf.right  !== null) p.MinEngulfingGrowthPercentShort = engulf.right;
         }
 
-        // EMA/MA-Filter
+        // EMA/MA-Filter (Feldbezeichnungen unterscheiden sich zwischen TiL v3.1 und v4.0)
         p.GlobalMAType = tv["Gleitender Durchschnitt MA-Mode"] === "SMA" ? 1 : 0;
-        p.UseMAFilterL = bool(tv["Trendfilter Long ?"]);
-        p.UseMAFilterS = bool(tv["Trendfilter Short ?"]);
 
-        p.MA1LenLong  = num(tv["MA Trend Long 1"],  p.MA1LenLong);
-        p.MA2LenLong  = num(tv["MA Trend Long 2"],  p.MA2LenLong);
-        p.MA3LenLong  = num(tv["MA Trend Long 3"],  p.MA3LenLong);
-        p.MA1LenShort = num(tv["MA Trend Short 1"], p.MA1LenShort);
-        p.MA2LenShort = num(tv["MA Trend Short 2"], p.MA2LenShort);
-        p.MA3LenShort = num(tv["MA Trend Short 3"], p.MA3LenShort);
+        const tvVer = detectTvVersion(tv);
+        log(`Detected TiL version in mapTvToConfig: ${tvVer}`);
 
-        // Blockfilter
+        if (tvVer === '3.1') {
+            p.UseMAFilterL = bool(tv["Trendfilter Long"]);
+            p.UseMAFilterS = bool(tv["Trendfilter Short"]);
+
+            p.MA1LenLong  = num(tv["MA1"], p.MA1LenLong);
+            p.MA2LenLong  = num(tv["MA2"], p.MA2LenLong);
+            p.MA3LenLong  = 0;
+            p.MA1LenShort = num(tv["MA3"], p.MA1LenShort);
+            p.MA2LenShort = num(tv["MA4"], p.MA2LenShort);
+            p.MA3LenShort = 0;
+
+            // Sortierfilter v3.1 → cBot v3.14 Properties
+            p.UseMASort2050200L = bool(tv["Sortierfilter: Long 20 > 50 > 200"]);
+            p.UseMASort2050200S = bool(tv["Short 200 > 50 > 20"]);
+            p.UseMASort102050L  = bool(tv["Sortierfilter: Long 10 > 20 > 50"]);
+            p.UseMASort102050S  = bool(tv["Short 50 > 20 > 10"]);
+
+            // SL-Modus und ATR-SL v3.1 → cBot v3.14 Properties
+            p.SLMode        = mapSlMode(tv["SL Modus"]);
+            p.AtrPeriod     = num(tv["ATR-Periode"],      p.AtrPeriod);
+            p.AtrMultiplier = num(tv["ATR-Multiplikator"], p.AtrMultiplier);
+
+            // Blockfilter-MAs v3.1
+            p.BlockMAFastL = num(tv["MA Fast Long"],  p.BlockMAFastL);
+            p.BlockMASlowL = num(tv["MA Slow Long"],  p.BlockMASlowL);
+            p.BlockMAFastS = num(tv["MA Fast Short"], p.BlockMAFastS);
+            p.BlockMASlowS = num(tv["MA Slow Short"], p.BlockMASlowS);
+        } else {
+            p.UseMAFilterL = bool(tv["Trendfilter Long ?"]);
+            p.UseMAFilterS = bool(tv["Trendfilter Short ?"]);
+
+            p.MA1LenLong  = num(tv["MA Trend Long 1"],  p.MA1LenLong);
+            p.MA2LenLong  = num(tv["MA Trend Long 2"],  p.MA2LenLong);
+            p.MA3LenLong  = num(tv["MA Trend Long 3"],  p.MA3LenLong);
+            p.MA1LenShort = num(tv["MA Trend Short 1"], p.MA1LenShort);
+            p.MA2LenShort = num(tv["MA Trend Short 2"], p.MA2LenShort);
+            p.MA3LenShort = num(tv["MA Trend Short 3"], p.MA3LenShort);
+
+            // Blockfilter-MAs v4.0
+            p.BlockMAFastL = num(tv["MA Block Fast Long"],  p.BlockMAFastL);
+            p.BlockMASlowL = num(tv["MA Block Slow Long"],  p.BlockMASlowL);
+            p.BlockMAFastS = num(tv["MA Block Fast Short"], p.BlockMAFastS);
+            p.BlockMASlowS = num(tv["MA Block Slow Short"], p.BlockMASlowS);
+        }
+        // v3.14 compat: alte MA Property-Namen immer spiegeln
+        p.MA1Len = p.MA1LenLong;
+        p.MA2Len = p.MA2LenLong;
+        p.MA3Len = p.MA1LenShort;
+        p.MA4Len = p.MA2LenShort;
+
+        // Blockfilter-Mode (Label identisch in v3.1 und v4.0)
         p.BlockModeL   = mapBlockFilterMode(tv["Blockfilter Long Mode"]);
-        p.BlockMAFastL = num(tv["MA Block Fast Long"],  p.BlockMAFastL);
-        p.BlockMASlowL = num(tv["MA Block Slow Long"],  p.BlockMASlowL);
-
         p.BlockModeS   = mapBlockFilterMode(tv["Blockfilter Short Mode"]);
-        p.BlockMAFastS = num(tv["MA Block Fast Short"], p.BlockMAFastS);
-        p.BlockMASlowS = num(tv["MA Block Slow Short"], p.BlockMASlowS);
 
         // RSI
         p.UseRSIFilterL = bool(tv["RSI-Filter Long ?"]);
@@ -975,13 +1099,13 @@
     }
 
     function reverseBlockFilterModeLong(val) {
-        const modes = ["Ohne", "Below Fast", "Below Slow", "Below Any", "Below Both", "Between Fast&Slow"];
-        return modes[val] ?? "Ohne";
+        const modes = ["None", "Below Fast", "Below Slow", "Below Any", "Below Both", "Between Fast&Slow"];
+        return modes[val] ?? "None";
     }
 
     function reverseBlockFilterModeShort(val) {
-        const modes = ["Ohne", "Above Fast", "Above Slow", "Above Any", "Above Both", "Between Fast&Slow"];
-        return modes[val] ?? "Ohne";
+        const modes = ["None", "Above Fast", "Above Slow", "Above Any", "Above Both", "Between Fast&Slow"];
+        return modes[val] ?? "None";
     }
 
     function makePair(left, right) {
@@ -992,7 +1116,7 @@
     // ============================================================
     //  CTRADER IMPORT - CONFIG TO TV MAPPING
     // ============================================================
-    function mapConfigToTv(config) {
+    function mapConfigToTv(config, tvVer = '4.0') {
         const tv = {};
 
         // Strategy
@@ -1048,7 +1172,8 @@
         tv["SL Nachziehen Long ?"]  = config.TrailingEnabledLong;
         tv["SL Nachziehen Short ?"] = config.TrailingEnabledShort;
 
-        for (let i = 1; i <= 4; i++) {
+        const maxStep = tvVer === '3.1' ? 6 : 4;
+        for (let i = 1; i <= maxStep; i++) {
             tv[`${i}. Trigger (R)`] = makePair(config[`Step${i}TriggerRLong`],  config[`Step${i}TriggerRShort`]);
             tv[`${i}. Schritt (R)`] = makePair(config[`Step${i}SLRLong`],       config[`Step${i}SLRShort`]);
         }
@@ -1085,24 +1210,68 @@
 
         // EMA/MA-Filter
         tv["Gleitender Durchschnitt MA-Mode"] = config.GlobalMAType === 1 ? "SMA" : "EMA";
-        tv["Trendfilter Long ?"]  = config.UseMAFilterL;
-        tv["Trendfilter Short ?"] = config.UseMAFilterS;
 
-        tv["MA Trend Long 1"]  = String(config.MA1LenLong);
-        tv["MA Trend Long 2"]  = String(config.MA2LenLong);
-        tv["MA Trend Long 3"]  = String(config.MA3LenLong);
-        tv["MA Trend Short 1"] = String(config.MA1LenShort);
-        tv["MA Trend Short 2"] = String(config.MA2LenShort);
-        tv["MA Trend Short 3"] = String(config.MA3LenShort);
+        const botVer = detectVersion(config);
+        log(`Detected cbotset version: ${botVer}, TiL version: ${tvVer}`);
 
-        // Blockfilter
-        tv["Blockfilter Long Mode"]   = reverseBlockFilterModeLong(config.BlockModeL);
-        tv["MA Block Fast Long"]      = String(config.BlockMAFastL);
-        tv["MA Block Slow Long"]      = String(config.BlockMASlowL);
+        if (tvVer === '3.1') {
+            // TiL v3.1: Feldbezeichnungen ohne "?", alte MA-Namen
+            tv["Trendfilter Long"]  = config.UseMAFilterL;
+            tv["Trendfilter Short"] = config.UseMAFilterS;
 
-        tv["Blockfilter Short Mode"]  = reverseBlockFilterModeShort(config.BlockModeS);
-        tv["MA Block Fast Short"]     = String(config.BlockMAFastS);
-        tv["MA Block Slow Short"]     = String(config.BlockMASlowS);
+            // MA-Werte: v3.14 cbotset hat MA1Len/MA2Len/MA3Len/MA4Len
+            tv["MA1"] = String(botVer === '3.14' ? (config.MA1Len ?? 50)  : (config.MA1LenLong  ?? 50));
+            tv["MA2"] = String(botVer === '3.14' ? (config.MA2Len ?? 200) : (config.MA2LenLong  ?? 200));
+            tv["MA3"] = String(botVer === '3.14' ? (config.MA3Len ?? 200) : (config.MA1LenShort ?? 200));
+            tv["MA4"] = String(botVer === '3.14' ? (config.MA4Len ?? 50)  : (config.MA2LenShort ?? 50));
+
+            // Sortierfilter v3.1
+            tv["Sortierfilter: Long 20 > 50 > 200"] = config.UseMASort2050200L ?? false;
+            tv["Short 200 > 50 > 20"]                = config.UseMASort2050200S ?? false;
+            tv["Sortierfilter: Long 10 > 20 > 50"]  = config.UseMASort102050L  ?? false;
+            tv["Short 50 > 20 > 10"]                 = config.UseMASort102050S  ?? false;
+
+            // SL-Modus und ATR-SL v3.1
+            tv["SL Modus"]           = reverseSlMode(config.SLMode ?? 0);
+            tv["ATR-Periode"]        = config.AtrPeriod    ?? 14;
+            tv["ATR-Multiplikator"]  = config.AtrMultiplier ?? 1.0;
+
+            // Blockfilter-MAs v3.1
+            tv["MA Fast Long"]  = String(config.BlockMAFastL);
+            tv["MA Slow Long"]  = String(config.BlockMASlowL);
+            tv["MA Fast Short"] = String(config.BlockMAFastS);
+            tv["MA Slow Short"] = String(config.BlockMASlowS);
+        } else {
+            // TiL v4.0
+            tv["Trendfilter Long ?"]  = config.UseMAFilterL;
+            tv["Trendfilter Short ?"] = config.UseMAFilterS;
+
+            if (botVer === '3.14') {
+                tv["MA Trend Long 1"]  = String(config.MA1Len  ?? 50);
+                tv["MA Trend Long 2"]  = String(config.MA2Len  ?? 200);
+                tv["MA Trend Long 3"]  = "0";
+                tv["MA Trend Short 1"] = String(config.MA3Len  ?? 200);
+                tv["MA Trend Short 2"] = String(config.MA4Len  ?? 50);
+                tv["MA Trend Short 3"] = "0";
+            } else {
+                tv["MA Trend Long 1"]  = String(config.MA1LenLong  ?? 50);
+                tv["MA Trend Long 2"]  = String(config.MA2LenLong  ?? 200);
+                tv["MA Trend Long 3"]  = String(config.MA3LenLong  ?? 0);
+                tv["MA Trend Short 1"] = String(config.MA1LenShort ?? 200);
+                tv["MA Trend Short 2"] = String(config.MA2LenShort ?? 50);
+                tv["MA Trend Short 3"] = String(config.MA3LenShort ?? 0);
+            }
+
+            // Blockfilter-MAs v4.0
+            tv["MA Block Fast Long"]  = String(config.BlockMAFastL);
+            tv["MA Block Slow Long"]  = String(config.BlockMASlowL);
+            tv["MA Block Fast Short"] = String(config.BlockMAFastS);
+            tv["MA Block Slow Short"] = String(config.BlockMASlowS);
+        }
+
+        // Blockfilter-Mode (Label identisch in v3.1 und v4.0)
+        tv["Blockfilter Long Mode"]  = reverseBlockFilterModeLong(config.BlockModeL);
+        tv["Blockfilter Short Mode"] = reverseBlockFilterModeShort(config.BlockModeS);
 
         // RSI
         tv["RSI-Filter Long ?"]  = config.UseRSIFilterL;
@@ -1176,8 +1345,11 @@
                         return;
                     }
 
-                    // Konvertiere Config zu TV-Settings
-                    const tvSettings = mapConfigToTv(cbotset.Parameters);
+                    // TiL-Version aus dem geöffneten Dialog erkennen, dann konvertieren
+                    const currentTv = extractSettings(modal);
+                    const tvVer = detectTvVersion(currentTv);
+                    log(`Detected TiL version for import: ${tvVer}`);
+                    const tvSettings = mapConfigToTv(cbotset.Parameters, tvVer);
 
                     let imported = 0;
                     let failed = [];
