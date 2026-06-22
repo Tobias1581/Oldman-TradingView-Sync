@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.07
+// @version      4.08
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -22,6 +22,12 @@
     // ============================================================
     const clean = t => t?.trim().replace(/\s+/g, " ") || "";
     const log = (...args) => DEBUG && console.log('[Oldman Universal]', ...args);
+    function logTable(title, rows) {
+        if (!DEBUG || !rows.length) return;
+        console.group(`[Oldman Universal] ${title}`);
+        console.table(rows);
+        console.groupEnd();
+    }
 
     function num(v, d = 0) {
         if (v === undefined || v === null || v === "") return d;
@@ -138,6 +144,7 @@
             "Schwelle 1 (Pts)", "S2", "S3",
 
             // 03 - Session
+            "Zeitzone (UTC)",
             "Session-Fenster",
             "Ausschlusszeiten Long", "Zeit Short",
             "Ausschlusstage Long", "Tage Short",
@@ -167,6 +174,10 @@
         // Versionsspezifische Felder anhängen
         if (tvVer === '3.1') {
             fieldsToExport.push(
+                // Basis v3.1
+                "Forex-Währungspaar ?",
+                "Volumen Modus ?",
+                "Schwellen in % ?", "Schwelle 1 (%)", "S2%", "S3%",
                 // Trendfilter v3.1 (kein ?)
                 "Trendfilter Long", "Trendfilter Short",
                 "MA1", "MA2",           // MA Trend Long
@@ -211,8 +222,13 @@
             }
         });
 
+        // Felder die im Modal existieren, aber nicht exportiert werden
+        const notExported = Object.keys(settings).filter(k => !fieldsToExport.includes(k));
+        if (notExported.length > 0) log(`ℹ Nicht exportierte Modal-Felder (${notExported.length}): ${notExported.join(' | ')}`);
+
+        alarmSettings['_tilVersion'] = tvVer;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(alarmSettings));
-        log(`Saved ${Object.keys(alarmSettings).length} settings to localStorage`);
+        log(`Saved ${Object.keys(alarmSettings).length} settings to localStorage (TiL v${tvVer})`);
 
         // Felder die still übersprungen werden (im UI ausgeblendet oder nur für cTrader-Export)
         const silentFields = [
@@ -224,6 +240,12 @@
         const missing = fieldsToExport.filter(f => settings[f] === undefined);
         const missingVisible = missing.filter(f => !silentFields.includes(f));
         log(`Export Summary: ${Object.keys(alarmSettings).length} exported, ${missing.length} missing (${missing.length - missingVisible.length} silent)`);
+
+        logTable(`Strategie→Alarm (TiL v${tvVer}) — Feldübersicht`, fieldsToExport.map(f => ({
+            Feld: f,
+            Status: settings[f] !== undefined ? '✓ KOPIERT' : silentFields.includes(f) ? '– SILENT' : '✗ FEHLT',
+            Wert: settings[f] !== undefined ? String(settings[f]).substring(0, 50) : ''
+        })));
 
         log("=== COPY TO ALARM COMPLETE ===");
 
@@ -374,10 +396,23 @@
 
         const settings = JSON.parse(dataStr);
 
+        // Versions-Check: gespeicherte TiL-Version vs. aktueller Alarm-Dialog
+        const savedVer = settings['_tilVersion'];
+        if (savedVer) {
+            const currentTv = extractSettings(modal);
+            const targetVer = detectTvVersion(currentTv);
+            log(`Version check: saved=${savedVer}, target=${targetVer}`);
+            if (savedVer !== targetVer) {
+                alert(`⚠ Versions-Konflikt!\n\nDie kopierten Einstellungen stammen von Strategietester v${savedVer}, du verwendest aber Alarm v${targetVer}.\n\nErlaubte Kombinationen:\n• Strategietester v3.1 → Alarm v3.1\n• Strategietester v4.0 → Alarm v4.0`);
+                return 0;
+            }
+        }
+
         let imported = 0;
         let failed = [];
+        const written = [];
 
-        const entries = Object.entries(settings);
+        const entries = Object.entries(settings).filter(([k]) => k !== '_tilVersion');
         const checkboxEntries = [];
         const inputEntries = [];
         const comboEntries = [];
@@ -386,7 +421,7 @@
             const control = findControlByLabel(modal, label);
 
             if (!control) {
-                failed.push(label);
+                failed.push({ Feld: label, Status: '✗ NICHT GEFUNDEN', Wert: String(value).substring(0, 50) });
                 log(`⚠ Control not found for "${label}"`);
                 continue;
             }
@@ -405,14 +440,16 @@
         for (const [label, value, control] of inputEntries) {
             log(`Processing input: ${label}`);
             const success = await setInputValue(control, value);
-            if (success) imported++; else failed.push(label);
+            if (success) { imported++; written.push({ Feld: label, Status: '✓ GESCHRIEBEN', Wert: String(value).substring(0, 50) }); }
+            else { failed.push({ Feld: label, Status: '✗ FEHLER', Wert: String(value).substring(0, 50) }); }
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         for (const [label, value, control] of comboEntries) {
             log(`Processing combobox: ${label}`);
             const success = await setComboboxValue(control, value);
-            if (success) imported++; else failed.push(label);
+            if (success) { imported++; written.push({ Feld: label, Status: '✓ GESCHRIEBEN', Wert: String(value).substring(0, 50) }); }
+            else { failed.push({ Feld: label, Status: '✗ FEHLER', Wert: String(value).substring(0, 50) }); }
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
@@ -424,11 +461,13 @@
         for (const [label, value, control] of checkboxEntries) {
             log(`Processing checkbox: ${label}`);
             const success = await setInputValue(control, value);
-            if (success) imported++; else failed.push(label);
+            if (success) { imported++; written.push({ Feld: label, Status: '✓ GESCHRIEBEN', Wert: String(value).substring(0, 50) }); }
+            else { failed.push({ Feld: label, Status: '✗ FEHLER', Wert: String(value).substring(0, 50) }); }
             await new Promise(resolve => setTimeout(resolve, 50));
         }
 
         log(`✓ Import Complete: ${imported} successful, ${failed.length} failed`);
+        logTable(`Alarm Import (TiL v${savedVer}) — Feldübersicht`, [...written, ...failed]);
 
         if (imported > 0) {
             alert(`✓ Import erfolgreich!\n\n${imported} Settings wurden übertragen.`);
@@ -581,6 +620,10 @@
     //  VERSION DETECTION
     // ============================================================
     function detectVersion(config) {
+        if (config._cbotVersion) return config._cbotVersion;
+        // Fallback für ältere Exports ohne Marker:
+        // UseMASort2050200L existiert nur in v3.14-Exports (v3.1-spezifisches Feld)
+        if (config.UseMASort2050200L !== undefined) return '3.14';
         if (config.MA1LenLong !== undefined) return '4.0';
         if (config.MA1Len     !== undefined) return '3.14';
         return '4.0';
@@ -589,7 +632,9 @@
     // Erkennt die TiL-Version anhand der im Dialog vorhandenen Felder
     // v3.1: hat "Backtest auf dem M15 ?" — v4.0 hat das nicht mehr
     function detectTvVersion(tv) {
-        if (tv["Backtest auf dem M15 ?"] !== undefined) return '3.1';
+        if (tv["Backtest auf dem M15 ?"] !== undefined) return '3.1'; // Strategietester-Marker
+        if (tv["Trendfilter Long"] !== undefined) return '3.1';       // Alarm-Marker (v3.1 ohne ?)
+        if (tv["MA1"] !== undefined) return '3.1';                    // Fallback-Marker v3.1
         return '4.0';
     }
 
@@ -873,6 +918,10 @@
             if (stepPair.right !== null) p[`Step${idx}SLRShort`]      = stepPair.right;
         }
 
+        const tvVer = detectTvVersion(tv);
+        log(`Detected TiL version in mapTvToConfig: ${tvVer}`);
+        p._cbotVersion = tvVer === '3.1' ? '3.14' : '4.0';
+
         const maxStep = tvVer === '3.1' ? 6 : 4;
         for (let i = 1; i <= maxStep; i++) mapStep(i);
 
@@ -937,9 +986,6 @@
         // EMA/MA-Filter (Feldbezeichnungen unterscheiden sich zwischen TiL v3.1 und v4.0)
         p.GlobalMAType = tv["Gleitender Durchschnitt MA-Mode"] === "SMA" ? 1 : 0;
 
-        const tvVer = detectTvVersion(tv);
-        log(`Detected TiL version in mapTvToConfig: ${tvVer}`);
-
         if (tvVer === '3.1') {
             p.UseMAFilterL = bool(tv["Trendfilter Long"]);
             p.UseMAFilterS = bool(tv["Trendfilter Short"]);
@@ -984,11 +1030,23 @@
             p.BlockMAFastS = num(tv["MA Block Fast Short"], p.BlockMAFastS);
             p.BlockMASlowS = num(tv["MA Block Slow Short"], p.BlockMASlowS);
         }
-        // v3.14 compat: alte MA Property-Namen immer spiegeln
-        p.MA1Len = p.MA1LenLong;
-        p.MA2Len = p.MA2LenLong;
-        p.MA3Len = p.MA1LenShort;
-        p.MA4Len = p.MA2LenShort;
+        if (tvVer === '3.1') {
+            // v3.14 compat: alte MA Property-Namen spiegeln
+            p.MA1Len = p.MA1LenLong;
+            p.MA2Len = p.MA2LenLong;
+            p.MA3Len = p.MA1LenShort;
+            p.MA4Len = p.MA2LenShort;
+        } else {
+            // v4.0: v3.1-spezifische Felder entfernen
+            delete p.MA1Len; delete p.MA2Len; delete p.MA3Len; delete p.MA4Len;
+            delete p.UseMASort2050200L; delete p.UseMASort2050200S;
+            delete p.UseMASort102050L;  delete p.UseMASort102050S;
+            delete p.SLMode; delete p.AtrPeriod; delete p.AtrMultiplier; delete p.SLHighLowMode;
+            delete p.Step5TriggerRLong; delete p.Step5SLRLong;
+            delete p.Step6TriggerRLong; delete p.Step6SLRLong;
+            delete p.Step5TriggerRShort; delete p.Step5SLRShort;
+            delete p.Step6TriggerRShort; delete p.Step6SLRShort;
+        }
 
         // Blockfilter-Mode (Label identisch in v3.1 und v4.0)
         p.BlockModeL   = mapBlockFilterMode(tv["Blockfilter Long Mode"]);
@@ -1043,40 +1101,49 @@
     // ============================================================
     function exportCTraderConfig(modal) {
         log("=== CTRADER EXPORT START ===");
-        const tv = extractSettings(modal);
-        log(`Extracted ${Object.keys(tv).length} settings from strategy modal`);
+        try {
+            const tv = extractSettings(modal);
+            log(`Extracted ${Object.keys(tv).length} settings from strategy modal`);
 
-        const parameters = mapTvToConfig(tv);
-        log("Mapped TV settings to cTrader parameters");
+            const tvVer = detectTvVersion(tv);
+            const targetBotVer = tvVer === '3.1' ? '3.14' : '4.0';
+            log(`Detected TiL version: ${tvVer} → target cBot: v${targetBotVer}`);
 
-        const chart = buildChartSection(tv);
-        log(`Chart section: Symbol=${chart.Symbol}, Period=${chart.Period}`);
+            const parameters = mapTvToConfig(tv);
+            log("Mapped TV settings to cTrader parameters");
 
-        const cbotset = {
-            Chart: chart,
-            Parameters: parameters
-        };
+            logTable(`cT Export (TiL v${tvVer} → cBot v${targetBotVer}) — Gemappte Parameter`,
+                Object.entries(parameters).map(([k, v]) => ({ Parameter: k, Wert: String(v).substring(0, 60) })));
 
-        const jsonStr = JSON.stringify(cbotset, null, 2);
-        const blob = new Blob([jsonStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
+            const chart = buildChartSection(tv);
+            log(`Chart section: Symbol=${chart.Symbol}, Period=${chart.Period}`);
 
-        const a = document.createElement("a");
-        a.href = url;
+            const cbotset = { Chart: chart, Parameters: parameters };
 
-        const sym = cbotset.Chart.Symbol || "unknown";
-        const per = cbotset.Chart.Period || "h1";
-        const filename = `${sym}_${per}.cbotset`;
-        a.download = filename;
+            const jsonStr = JSON.stringify(cbotset, null, 2);
+            const blob = new Blob([jsonStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
 
-        log(`Downloading: ${filename}`);
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+            const a = document.createElement("a");
+            a.href = url;
 
-        log("=== CTRADER EXPORT COMPLETE ===");
-        alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n\n⚠ Bitte manuell in cTrader setzen:\n- WE-Endzeit (WeekendCloseTimeStr)\n- Abend-Endzeit (EveningCloseTimeStr)\n- Feiertag-Schließzeit (HolidayCloseTimeStr)\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)`);
+            const sym = cbotset.Chart.Symbol || "unknown";
+            const per = cbotset.Chart.Period || "h1";
+            const filename = `Oldman Strategie v${targetBotVer}, ${sym} ${per}.cbotset`;
+            a.download = filename;
+
+            log(`Downloading: ${filename}`);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            log("=== CTRADER EXPORT COMPLETE ===");
+            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für cBot v${targetBotVer}\n\n⚠ Bitte manuell in cTrader setzen:\n- WE-Endzeit (WeekendCloseTimeStr)\n- Abend-Endzeit (EveningCloseTimeStr)\n- Feiertag-Schließzeit (HolidayCloseTimeStr)\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)`);
+        } catch (err) {
+            log(`⛔ EXPORT FEHLER: ${err.message}`, err);
+            alert(`⛔ cTrader Export fehlgeschlagen!\n\n${err.message}\n\nDetails in der Browser-Konsole (F12).`);
+        }
     }
 
     // ============================================================
@@ -1099,13 +1166,15 @@
     }
 
     function reverseBlockFilterModeLong(val) {
-        const modes = ["None", "Below Fast", "Below Slow", "Below Any", "Below Both", "Between Fast&Slow"];
-        return modes[val] ?? "None";
+        // TradingView translates Pine Script 'None' → 'Ohne' in the UI
+        const modes = ["Ohne", "Below Fast", "Below Slow", "Below Any", "Below Both", "Between Fast&Slow"];
+        return modes[val] ?? "Ohne";
     }
 
     function reverseBlockFilterModeShort(val) {
-        const modes = ["None", "Above Fast", "Above Slow", "Above Any", "Above Both", "Between Fast&Slow"];
-        return modes[val] ?? "None";
+        // TradingView translates Pine Script 'None' → 'Ohne' in the UI
+        const modes = ["Ohne", "Above Fast", "Above Slow", "Above Any", "Above Both", "Between Fast&Slow"];
+        return modes[val] ?? "Ohne";
     }
 
     function makePair(left, right) {
@@ -1345,14 +1414,26 @@
                         return;
                     }
 
-                    // TiL-Version aus dem geöffneten Dialog erkennen, dann konvertieren
+                    // TiL-Version aus dem geöffneten Dialog erkennen
                     const currentTv = extractSettings(modal);
                     const tvVer = detectTvVersion(currentTv);
                     log(`Detected TiL version for import: ${tvVer}`);
+
+                    // cBot-Version aus der Datei erkennen und auf Mismatch prüfen
+                    const botVer = detectVersion(cbotset.Parameters);
+                    log(`Detected cBot version in file: ${botVer}`);
+                    const expectedBotVer = tvVer === '3.1' ? '3.14' : '4.0';
+                    if (botVer !== expectedBotVer) {
+                        alert(`⚠ Versions-Konflikt!\n\nDu verwendest Strategietester/Alarm v${tvVer}, aber die Datei stammt von cBot v${botVer}.\n\nErlaubte Kombinationen:\n• Strategietester/Alarm v3.1  →  cBot v3.14\n• Strategietester/Alarm v4.0  →  cBot v4.0\n\nBitte passende Datei laden.`);
+                        resolve(0);
+                        return;
+                    }
+
                     const tvSettings = mapConfigToTv(cbotset.Parameters, tvVer);
 
                     let imported = 0;
                     let failed = [];
+                    const written = [];
 
                     const checkboxEntries = [];
                     const inputEntries = [];
@@ -1363,7 +1444,7 @@
                         const control = findControlByLabel(modal, label);
 
                         if (!control) {
-                            failed.push(label);
+                            failed.push({ Feld: label, Status: '✗ NICHT GEFUNDEN', Wert: String(value).substring(0, 50) });
                             log(`⚠ Control not found for "${label}" with value "${value}"`);
                             continue;
                         }
@@ -1393,14 +1474,16 @@
                     for (const [label, value, control] of inputEntries) {
                         log(`Processing input: ${label}`);
                         const success = await setInputValue(control, value);
-                        if (success) imported++; else failed.push(label);
+                        if (success) { imported++; written.push({ Feld: label, Status: '✓ GESCHRIEBEN', Wert: String(value).substring(0, 50) }); }
+                        else { failed.push({ Feld: label, Status: '✗ FEHLER', Wert: String(value).substring(0, 50) }); }
                         await new Promise(resolve => setTimeout(resolve, 100));
                     }
 
                     for (const [label, value, control] of comboEntries) {
                         log(`Processing combobox: ${label}`);
                         const success = await setComboboxValue(control, value);
-                        if (success) imported++; else failed.push(label);
+                        if (success) { imported++; written.push({ Feld: label, Status: '✓ GESCHRIEBEN', Wert: String(value).substring(0, 50) }); }
+                        else { failed.push({ Feld: label, Status: '✗ FEHLER', Wert: String(value).substring(0, 50) }); }
                         await new Promise(resolve => setTimeout(resolve, 100));
                     }
 
@@ -1412,13 +1495,15 @@
                     for (const [label, value, control] of checkboxEntries) {
                         log(`Processing checkbox: ${label}`);
                         const success = await setInputValue(control, value);
-                        if (success) imported++; else failed.push(label);
+                        if (success) { imported++; written.push({ Feld: label, Status: '✓ GESCHRIEBEN', Wert: String(value).substring(0, 50) }); }
+                        else { failed.push({ Feld: label, Status: '✗ FEHLER', Wert: String(value).substring(0, 50) }); }
                         await new Promise(resolve => setTimeout(resolve, 50));
                     }
 
                     document.body.removeChild(overlay);
 
                     log(`✓ cTrader Import Complete: ${imported} successful, ${failed.length} failed`);
+                    logTable(`cT Import (cBot v${botVer} → TiL v${tvVer}) — Feldübersicht`, [...written, ...failed]);
 
                     alert(`✓ cTrader Import erfolgreich!\n\n${imported} Settings wurden übertragen.\n\n⚠ Bitte manuell in TradingView setzen:\n- WE-Endzeit\n- Abend-Endzeit\n- Early-Close Zeit\n→ Kerzenzeit des jeweiligen Timeframes!`);
 
