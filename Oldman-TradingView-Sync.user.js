@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.081
+// @version      4.082
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -499,6 +499,12 @@
         return flagChecked ? 1 : 0;
     }
 
+    // Dominant Engulfing Vergleich: Close = 0, Docht = 1 (Enum-Reihenfolge im Bot)
+    function mapDomEngSource(str) {
+        if (!str) return 0;
+        return str.trim().toLowerCase() === "docht" ? 1 : 0;
+    }
+
     function mapBlockFilterMode(str) {
         if (!str) return 0;
         const s = str.trim().toLowerCase();
@@ -632,9 +638,16 @@
     // Erkennt die TiL-Version anhand der im Dialog vorhandenen Felder
     // v3.1: hat "Backtest auf dem M15 ?" — v4.0 hat das nicht mehr
     function detectTvVersion(tv) {
-        if (tv["Backtest auf dem M15 ?"] !== undefined) return '3.1'; // Strategietester-Marker
-        if (tv["Trendfilter Long"] !== undefined) return '3.1';       // Alarm-Marker (v3.1 ohne ?)
-        if (tv["MA1"] !== undefined) return '3.1';                    // Fallback-Marker v3.1
+        // Primär: explizites Versions-Dropdown (seit v4.0)
+        const ver = tv["Skript-Version"];
+        if (ver) {
+            if (ver.startsWith("v3")) return '3.1';
+            if (ver.startsWith("v4")) return '4.0';
+        }
+        // Fallback für v3.1 (kein Versions-Dropdown vorhanden)
+        if (tv["Backtest auf dem M15 ?"] !== undefined) return '3.1'; // Strategietester v3.1
+        if (tv["Trendfilter Long"] !== undefined) return '3.1';       // Alarm v3.1
+        if (tv["MA1"] !== undefined) return '3.1';                    // Fallback v3.1
         return '4.0';
     }
 
@@ -746,6 +759,13 @@
             BodyMinPctShort: 15.0,
             MinEngulfingGrowthPercentLong: 0.0,
             MinEngulfingGrowthPercentShort: 0.0,
+            // Dominant Engulfing (Bot v5.x; in v4.x fest aus)
+            UseDominantEngulfingLong: false,
+            DominantEngulfingLookbackLong: 4,
+            DominantEngulfingSourceLong: 0,
+            UseDominantEngulfingShort: false,
+            DominantEngulfingLookbackShort: 4,
+            DominantEngulfingSourceShort: 0,
 
             // --- Trend/MA-Filter ---
             GlobalMAType: 0,
@@ -983,6 +1003,14 @@
             if (engulf.right  !== null) p.MinEngulfingGrowthPercentShort = engulf.right;
         }
 
+        // Dominant Engulfing (nur Strategie v5.x hat die Felder; sonst bleibt es aus)
+        p.UseDominantEngulfingLong       = bool(tv["Dominant Engulfing Long ?"]);
+        p.UseDominantEngulfingShort      = bool(tv["Dominant Engulfing Short ?"]);
+        p.DominantEngulfingLookbackLong  = num(tv["DE Lookback L"], p.DominantEngulfingLookbackLong);
+        p.DominantEngulfingLookbackShort = num(tv["DE Lookback S"], p.DominantEngulfingLookbackShort);
+        p.DominantEngulfingSourceLong    = mapDomEngSource(tv["DE Vergleich L"]);
+        p.DominantEngulfingSourceShort   = mapDomEngSource(tv["DE Vergleich S"]);
+
         // EMA/MA-Filter (Feldbezeichnungen unterscheiden sich zwischen TiL v3.1 und v4.0)
         p.GlobalMAType = tv["Gleitender Durchschnitt MA-Mode"] === "SMA" ? 1 : 0;
 
@@ -1177,6 +1205,11 @@
         return modes[val] ?? "Ohne";
     }
 
+    // cbotset kann das Enum als Zahl (1) oder als Name ("Docht") enthalten
+    function reverseDomEngSource(val) {
+        return (val === 1 || val === "1" || String(val).toLowerCase() === "docht") ? "Docht" : "Close";
+    }
+
     function makePair(left, right) {
         if (left === right) return String(left);
         return `${left}/${right}`;
@@ -1276,6 +1309,18 @@
         tv["Gegen-Docht (%)"]   = makePair(config.CounterWickPctLong, config.CounterWickPctShort);
         tv["Körper min (%)"]     = makePair(config.BodyMinPctLong,  config.BodyMinPctShort);
         tv["Engulfing Growth (%)"] = makePair(config.MinEngulfingGrowthPercentLong, config.MinEngulfingGrowthPercentShort);
+
+        // Dominant Engulfing – nur übertragen, wenn die Datei die Felder enthält
+        if (config.UseDominantEngulfingLong !== undefined) {
+            tv["Dominant Engulfing Long ?"]  = config.UseDominantEngulfingLong;
+            tv["DE Lookback L"]              = config.DominantEngulfingLookbackLong ?? 4;
+            tv["DE Vergleich L"]             = reverseDomEngSource(config.DominantEngulfingSourceLong);
+        }
+        if (config.UseDominantEngulfingShort !== undefined) {
+            tv["Dominant Engulfing Short ?"] = config.UseDominantEngulfingShort;
+            tv["DE Lookback S"]              = config.DominantEngulfingLookbackShort ?? 4;
+            tv["DE Vergleich S"]             = reverseDomEngSource(config.DominantEngulfingSourceShort);
+        }
 
         // EMA/MA-Filter
         tv["Gleitender Durchschnitt MA-Mode"] = config.GlobalMAType === 1 ? "SMA" : "EMA";
