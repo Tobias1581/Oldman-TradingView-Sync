@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.084
+// @version      4.085
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -552,7 +552,8 @@
         let failed = [];
         const written = [];
 
-        const entries = Object.entries(settings).filter(([k]) => k !== '_tilVersion');
+        // Alarm hat nie 5.x-Felder (Dominant Engulfing, ADX, ATR) – nicht versuchen, nicht melden
+        const entries = Object.entries(settings).filter(([k]) => k !== '_tilVersion' && !EXPORT_ONLY_V5.includes(k));
         const checkboxEntries = [];
         const inputEntries = [];
         const comboEntries = [];
@@ -740,6 +741,47 @@
     }
     function setBroker(id) {
         try { localStorage.setItem(BROKER_KEY, id); } catch (e) {}
+    }
+
+    // Pop-up beim cT Export: Für welchen Broker ist die Datei? Zuletzt gewählter Broker ist hervorgehoben.
+    // Ergebnis: Broker-ID oder "" (abgebrochen)
+    function askBroker() {
+        return new Promise(resolve => {
+            const last = getBroker();
+            const overlay = document.createElement("div");
+            overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;justify-content:center;align-items:center;z-index:100000;";
+            const box = document.createElement("div");
+            box.style.cssText = "background:#2E3A47;color:#fff;padding:24px 28px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.5);font-size:15px;min-width:300px;text-align:center;";
+            box.innerHTML = `<div style="font-weight:bold;font-size:17px;margin-bottom:8px;">cTrader-Datei für welchen Broker?</div>` +
+                `<div style="font-size:13px;opacity:0.8;margin-bottom:16px;">Davon hängt der Symbolname ab (z. B. US30.cash bei FTMO, US30 bei TTP).</div>`;
+            const row = document.createElement("div");
+            row.style.cssText = "display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;";
+            const close = id => {
+                document.removeEventListener("keydown", onKey, true);
+                overlay.remove();
+                resolve(id);
+            };
+            brokerList.filter(b => b.freigegeben).forEach(b => {
+                const btn = document.createElement("button");
+                btn.textContent = b.label;
+                const sel = b.id === last;
+                btn.style.cssText = `padding:8px 16px;border-radius:6px;cursor:pointer;color:#fff;font:inherit;font-weight:bold;` +
+                    `background:${sel ? "#1976D2" : "transparent"};border:2px solid #2196F3;`;
+                btn.addEventListener("click", () => { setBroker(b.id); log(`Broker gewählt: ${b.id}`); close(b.id); });
+                row.appendChild(btn);
+            });
+            const cancel = document.createElement("button");
+            cancel.textContent = "Abbrechen";
+            cancel.style.cssText = "padding:4px 12px;border-radius:6px;cursor:pointer;color:#ccc;background:transparent;border:1px solid #777;font:inherit;font-size:13px;";
+            cancel.addEventListener("click", () => close(""));
+            const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); close(""); } };
+            document.addEventListener("keydown", onKey, true);
+            overlay.addEventListener("click", e => { if (e.target === overlay) close(""); });
+            box.appendChild(row);
+            box.appendChild(cancel);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+        });
     }
 
     function mapToBrokerSymbol(tvSymbolRaw, broker) {
@@ -1327,11 +1369,11 @@
     //  Basis-cbotset geladen (falls vorhanden), damit LicenseKey etc.
     //  nicht verloren gehen.
     // ============================================================
-    function exportCTraderConfig(modal) {
+    async function exportCTraderConfig(modal) {
         log("=== CTRADER EXPORT START ===");
-        const broker = getBroker();
+        const broker = await askBroker();
         if (!broker) {
-            alert("⚠ Bitte zuerst deinen Broker wählen!\n\nDie Auswahl steht direkt neben dem Knopf \"cT Export\".\nDanach erneut auf \"cT Export\" klicken.");
+            log("cT Export abgebrochen (kein Broker gewählt)");
             return;
         }
         const brokerLabel = (brokerList.find(b => b.id === broker) || {}).label || broker;
@@ -1398,7 +1440,7 @@
             URL.revokeObjectURL(url);
 
             log("=== CTRADER EXPORT COMPLETE ===");
-            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für Oldman Trader v${targetBotVer}\n💾 Zusätzlich gesichert: ${Object.keys(allFields).length} TradingView-Felder für cT Import (ohne Schließzeiten)\n🏦 Broker: ${brokerLabel} – Symbol in der Datei: ${sym}\n   Falsch? Broker neben \"cT Export\" ändern und neu exportieren.\n   Heißt das Symbol bei dir anders: Instanz auf dem richtigen Chart anlegen\n   und die Datei dort über \"Parameter laden\" einspielen.\n\n⚠ Bitte manuell in cTrader setzen:\n- Wochenende Schließzeit\n- Abend Schließzeit\n- US-Halbtage Schließzeit\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)` +
+            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für Oldman Trader v${targetBotVer}\n💾 Zusätzlich gesichert: ${Object.keys(allFields).length} TradingView-Felder für cT Import (ohne Schließzeiten)\n🏦 Broker: ${brokerLabel} – Symbol in der Datei: ${sym}\n   Falsch? Erneut \"cT Export\" klicken und anderen Broker wählen.\n   Heißt das Symbol bei dir anders: Instanz auf dem richtigen Chart anlegen\n   und die Datei dort über \"Parameter laden\" einspielen.\n\n⚠ Bitte manuell in cTrader setzen:\n- Wochenende Schließzeit\n- Abend Schließzeit\n- US-Halbtage Schließzeit\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)` +
                 (issues.unreadable.length ? `\n\n⛔ Nicht übertragen – Wert nicht lesbar (Format 20 oder 20/30, Dezimalpunkt), Bot behält seinen Standard:\n${formatIssueList(issues.unreadable)}` : "") +
                 (issues.missing.size ? `\n\n⚠ Nicht übertragen – Feld in dieser Strategie nicht gefunden, Bot behält seinen Standard:\n${formatIssueList([...issues.missing])}` : ""));
         } catch (err) {
@@ -1705,7 +1747,7 @@
                     log(`Detected cBot version in file: ${botVer}`);
                     const expectedBotVer = tvVer === '3.1' ? '3.14' : '4.0';
                     if (botVer !== expectedBotVer) {
-                        alert(`⚠ Versionskonflikt!\n\nDu verwendest Strategie-Familie v${tvVer}, aber die Datei stammt von Oldman Trader v${botVer}.\n\nErlaubte Kombinationen:\n• Strategie v3.1  →  Oldman Trader v3.14\n• Strategie v4.x/v5.x (Engulfing Setup Strategy)  →  Oldman Trader v4.x/v5.x\n\nBitte passende Datei laden.`);
+                        alert(`⚠ Versionskonflikt!\n\nDu verwendest Strategie-Familie v${tvVer}, aber die Datei stammt von Oldman Trader v${botVer}.\n\nErlaubte Kombinationen:\n• Strategie v3.1  →  Oldman Trader v3.14\n• Strategie v4.x/v5.x (Oldman Strategie TiL)  →  Oldman Trader v4.x/v5.x\n\nBitte passende Datei laden.`);
                         resolve(0);
                         return;
                     }
@@ -1726,6 +1768,12 @@
                         }
                     }
                     Object.assign(merged, tvSettings);
+                    // 4.x-Skripte haben keine 5.x-Felder (Dominant Engulfing, ADX, ATR) – weder setzen noch als Fehler melden
+                    if (String(currentTv["Skript-Version"] || "").startsWith("v4")) {
+                        for (const key of Object.keys(merged)) {
+                            if (EXPORT_ONLY_V5.includes(key.replace(/ #\d+$/, ""))) delete merged[key];
+                        }
+                    }
 
                     let imported = 0;
                     let failed = [];
@@ -1850,7 +1898,7 @@
 
         const container = document.createElement("div");
         container.className = "oldman-buttons-container";
-        container.style.cssText = "display:inline-flex;gap:10px;margin-left:10px;";
+        container.style.cssText = "display:inline-flex;gap:6px;margin-left:8px;";
 
         function makeBtn(text, border, bg) {
             const btn = document.createElement("button");
@@ -1876,33 +1924,11 @@
             setTimeout(() => { copyBtn.textContent = "Alarm"; copyBtn.style.background = "#2E7D32"; }, 2000);
         });
 
-        exportBtn.addEventListener("click", () => { exportCTraderConfig(modal); });
+        exportBtn.addEventListener("click", async () => { await exportCTraderConfig(modal); });
 
         importBtn.addEventListener("click", async () => { await importCTraderConfig(modal); });
 
-        // Broker-Auswahl für den cT Export (wird im Browser gemerkt)
-        const brokerSel = document.createElement("select");
-        brokerSel.title = "Für welchen Broker ist die cTrader-Datei? Davon hängt der Symbolname ab (z. B. US30.cash bei FTMO, US30 bei TTP).";
-        brokerSel.style.cssText = "padding:2px 4px;border-radius:4px;cursor:pointer;color:inherit;background:transparent;border:1px solid #2196F3;font:inherit;";
-        const placeholder = document.createElement("option");
-        placeholder.value = "";
-        placeholder.textContent = "Broker wählen …";
-        brokerSel.appendChild(placeholder);
-        brokerList.filter(b => b.freigegeben).forEach(b => {
-            const opt = document.createElement("option");
-            opt.value = b.id;
-            opt.textContent = b.label;
-            opt.style.color = "#000";
-            brokerSel.appendChild(opt);
-        });
-        brokerSel.value = getBroker();
-        brokerSel.addEventListener("change", () => {
-            setBroker(brokerSel.value);
-            log(`Broker gewählt: ${brokerSel.value}`);
-        });
-
         container.appendChild(copyBtn);
-        container.appendChild(brokerSel);
         container.appendChild(exportBtn);
         container.appendChild(importBtn);
         actions.insertAdjacentElement("afterend", container);
