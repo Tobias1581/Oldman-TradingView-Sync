@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.082
+// @version      4.084
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -35,27 +35,127 @@
         return isNaN(n) ? d : n;
     }
 
-    function splitPair(raw) {
+    // Sammelt beim cT Export, was nicht übertragen werden konnte (null = gerade kein Export)
+    let exportIssues = null;
+
+    function splitPair(raw, label) {
         if (!raw || typeof raw !== "string") return { left: null, right: null };
-        const parts = raw.split("/");
-        if (parts.length === 1) {
-            const v = num(parts[0], null);
-            return { left: v, right: v };
+        // Komma ist hier kein Dezimalzeichen: „20,30“ wäre sonst still 20.3 (die Strategie nimmt dann ihren Ersatzwert)
+        if (/,/.test(raw) || raw.split("/").length > 2) {
+            if (exportIssues && label) exportIssues.unreadable.push(`${label}: „${raw}“`);
+            return { left: null, right: null };
         }
-        return {
-            left: num(parts[0], null),
-            right: num(parts[1], null)
-        };
+        const parts = raw.split("/");
+        const res = parts.length === 1
+            ? { left: num(parts[0], null), right: num(parts[0], null) }
+            : { left: num(parts[0], null), right: num(parts[1], null) };
+        if (exportIssues && label && (res.left === null || res.right === null)) exportIssues.unreadable.push(`${label}: „${raw}“`);
+        return res;
+    }
+
+    // Fehlerliste für Meldungen: höchstens max Zeilen, Rest steht in der Konsole
+    function formatIssueList(lines, max = 15) {
+        const shown = lines.slice(0, max).map(l => "  - " + l);
+        if (lines.length > max) shown.push(`  … und ${lines.length - max} weitere (Browser-Konsole F12)`);
+        return shown.join("\n");
     }
 
     const bool = v => v === true;
+
+    // Seit 4.1: Feldnamen von Strategie 4.1/5.1 und Alarm 4.1 (25.10.2026). Hier stehen NUR alte Namen aus
+    // veröffentlichten Fassungen (Strategie 4.0–4.03/5.03, Alarm 4.0/4.03, Userscript 4.082) → heutiger Name.
+    // Namen aus nie veröffentlichten Zwischenständen (4.1/5.1, a, b) sind bewusst nicht mehr drin.
+    const LABEL_ALIAS = {
+        "Enddatum": "Backtest Enddatum",
+        "Session-Fenster": "Session-Zeiten",
+        "Trades vor Wochenende schließen?": "Wochenende schließen",
+        "WE-Endzeit": "Wochenende Schließzeit (Kerze)",
+        "Trades am Abend schließen?": "Abend schließen",
+        "Abend-Endzeit": "Abend Schließzeit (Kerze)",
+        "Early-Close Zeit": "US-Halbtage Schließzeit (Kerze)",
+        "Gleitender Durchschnitt MA-Mode": "MA-Berechnung",
+        "Oldman Gold Long ?": "Strategie-Logik Long",
+        "Oldman Gold Short ?": "Strategie-Logik Short",
+        "Regel 1L": "R1L",
+        "Regel 2L": "R2L",
+        "Regel 3L": "R3L",
+        "Regel 4L (200)": "R4L-200",
+        "Regel 4L (50)": "R4L-50",
+        "Regel 1S": "R1S",
+        "Regel 2S": "R2S",
+        "Regel 3S": "R3S",
+        "Regel 4S (200)": "R4S-200",
+        "Regel 4S (50)": "R4S-50",
+        "SL Körper Long ?": "SL an Kerzenkörper Long",
+        "SL Körper Short ?": "SL an Kerzenkörper Short",
+        "Kerzenteilung Long ?": "Kerzenteilung Long",
+        "Kerzenteilung Short ?": "Kerzenteilung Short",
+        "S2": "Schwelle 2 (Pts)",
+        "S3": "Schwelle 3 (Pts)",
+        "F2": "Teilungsfaktor 2",
+        "F3": "Teilungsfaktor 3",
+        "SL Nachziehen Long ?": "Trailing-SL Long",
+        "SL Nachziehen Short ?": "Trailing-SL Short",
+        "1. Schritt (R)": "1. SL-Level (R)",
+        "2. Schritt (R)": "2. SL-Level (R)",
+        "3. Schritt (R)": "3. SL-Level (R)",
+        "4. Schritt (R)": "4. SL-Level (R)",
+        "Zeit Short": "Ausschlusszeiten Short",
+        "Tage Short": "Ausschlusstage Short",
+        "Kerze min (Pts)": "Min. Kerzengröße (Pts)",
+        "Kerze max (Pts)": "Max. Kerzengröße (Pts)",
+        "Dominant Engulfing Long ?": "Dominant Engulfing Long",
+        "Dominant Engulfing Short ?": "Dominant Engulfing Short",
+        "Trendfilter Long ?": "Trendfilter Long",
+        "Trendfilter Short ?": "Trendfilter Short",
+        "Blockfilter Long Mode": "Blockfilter Long",
+        "MA Block Fast Long": "Block-MA Fast Long",
+        "MA Block Slow Long": "Block-MA Slow Long",
+        "Blockfilter Short Mode": "Blockfilter Short",
+        "MA Block Fast Short": "Block-MA Fast Short",
+        "MA Block Slow Short": "Block-MA Slow Short",
+        "RSI-Filter Long ?": "RSI-Filter Long",
+        "RSI-Filter Short ?": "RSI-Filter Short",
+        "RSI-Länge": "RSI Periode",
+        "RSI Long: min": "RSI Long Min",
+        "RSI Long: max": "RSI Long Max",
+        "RSI Short: min": "RSI Short Min",
+        "RSI Short: max": "RSI Short Max",
+        "MACD-Filter Long ?": "MACD-Filter Long",
+        "MACD-Filter Short ?": "MACD-Filter Short",
+        "MACD-Signal": "MACD Signal Periode",
+        "MACD-Fast": "MACD Fast Periode",
+        "MACD-Slow": "MACD Slow Periode",
+        "StochRSI-Filter Long ?": "StochRSI Long",
+        "StochRSI-Filter Short ?": "StochRSI Short",
+        "SRSI Max (Long)": "StochRSI Max Long",
+        "SRSI Min (Short)": "StochRSI Min Short",
+        "ADX-Filter Long ?": "ADX-Filter Long",
+        "ADX-Filter Short ?": "ADX-Filter Short",
+        "ATR-Filter Long ?": "ATR-Filter Long",
+        "ATR-Filter Short ?": "ATR-Filter Short",
+        "Ausschlussgründe anzeigen?": "Ausschlussgründe anzeigen",
+        "Session-Zeiten einfärben?": "Session-Zeiten einfärben",
+        "Balkenlupe-Hinweis anzeigen?": "Balkendetaillierung-Hinweis anzeigen",
+        "Balkendetaillierung-Hinweis anzeigen?": "Balkendetaillierung-Hinweis anzeigen",
+        "Engulfings nur in Session anzeigen?": "Engulfings nur in Session anzeigen",
+        "Setups einzeichnen?": "Setups einzeichnen",
+        "Linien Last High/Last Low anzeigen?": "Linien Last High/Last Low anzeigen",
+        "DE Lookback L": "DE Lookback Long",
+        "DE Lookback S": "DE Lookback Short",
+        "DE Vergleich L": "DE Vergleich Long",
+        "DE Vergleich S": "DE Vergleich Short"
+    };
+    const normLabel = l => LABEL_ALIAS[l] || l;
+    // Auch für Schlüssel mit " #2" usw.
+    const normKey = k => { const m = k.match(/^(.*) (#\d+)$/); return m ? `${normLabel(m[1])} ${m[2]}` : normLabel(k); };
 
     function findLabelForControl(control, root) {
         if (control.type === "checkbox") {
             const lab = control.closest("label");
             if (lab) {
                 const txt = clean(lab.innerText);
-                if (txt) return txt;
+                if (txt) return normLabel(txt);
             }
         }
         let cur = control.parentElement;
@@ -63,7 +163,7 @@
             const sib = cur.previousElementSibling;
             if (sib && !sib.querySelector("input, button[role='combobox']")) {
                 const txt = clean(sib.innerText);
-                if (txt) return txt;
+                if (txt) return normLabel(txt);
             }
             cur = cur.parentElement;
         }
@@ -88,11 +188,46 @@
         return settings;
     }
 
-    function findControlByLabel(modal, labelText) {
+    // Schließzeiten NIE übertragen: TradingView rechnet mit Kerzenzeit, cTrader mit realer
+    // Schließzeit – müssen auf beiden Seiten von Hand gesetzt werden.
+    // cT Export: Felder, die nur alte (3.1) bzw. nur Test-Skripte (5.x) haben – fehlen sie, ist das kein Fehler
+    const EXPORT_OPTIONAL = ["Backtest auf dem M15 ?", "Trendfilter Long", "MA1", "MA2", "MA3", "MA4",
+        "Sortierfilter: Long 20 > 50 > 200", "Short 200 > 50 > 20", "Sortierfilter: Long 10 > 20 > 50", "Short 50 > 20 > 10",
+        "SL Modus", "ATR-Periode", "ATR-Multiplikator", "MA Fast Long", "MA Slow Long", "MA Fast Short", "MA Slow Short"];
+    const EXPORT_ONLY_V5 = ["Dominant Engulfing Long", "Dominant Engulfing Short", "DE Lookback Long", "DE Lookback Short",
+        "DE Vergleich Long", "DE Vergleich Short", "ADX-Filter Long", "ADX-Filter Short", "ADX Periode", "ADX Minimum",
+        "ATR-Filter Long", "ATR-Filter Short", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"];
+    const NEVER_TRANSFER = ["Wochenende Schließzeit (Kerze)", "Abend Schließzeit (Kerze)", "US-Halbtage Schließzeit (Kerze)"];
+
+    // Alle Felder für die Sicherung in der .cbotset (seit 4.1), ohne NEVER_TRANSFER.
+    // Doppelte Feldnamen bekommen " #2", " #3" … angehängt, damit keins verloren geht.
+    function extractAllSettings(modal) {
+        const all = {};
+        const seen = {};
+        modal.querySelectorAll("input, button[role='combobox']").forEach(control => {
+            if (control.type === "hidden") return;
+            const label = findLabelForControl(control, modal);
+            if (!label) return;
+            if (NEVER_TRANSFER.includes(label)) return;
+            let value;
+            if (control.tagName === "INPUT") {
+                value = control.type === "checkbox" ? control.checked : clean(control.value);
+            } else if (control.tagName === "BUTTON") {
+                value = clean(control.innerText);
+            }
+            if (value === undefined) return;
+            seen[label] = (seen[label] || 0) + 1;
+            all[seen[label] === 1 ? label : `${label} #${seen[label]}`] = value;
+        });
+        return all;
+    }
+
+    function findControlByLabel(modal, labelText, nth = 1) {
         const controls = modal.querySelectorAll("input, button[role='combobox']");
+        let hit = 0;
         for (const control of controls) {
             const label = findLabelForControl(control, modal);
-            if (label === labelText) {
+            if (label === normLabel(labelText) && ++hit === nth) {
                 let parent = control.closest('[role="tabpanel"]');
                 if (parent && parent.style.display === 'none') {
                     log(`Control "${labelText}" is in hidden tab, making visible...`);
@@ -127,10 +262,10 @@
         // Gemeinsame Felder – identisch in v3.1 und v4.0
         const fieldsToExport = [
             // 01 - Basis
-            "Oldman Gold Long ?",
-            "Oldman Gold Short ?",
-            "Regel 1L", "Regel 2L", "Regel 3L", "Regel 4L (200)", "Regel 4L (50)",
-            "Regel 1S", "Regel 2S", "Regel 3S", "Regel 4S (200)", "Regel 4S (50)",
+            "Strategie-Logik Long",
+            "Strategie-Logik Short",
+            "R1L", "R2L", "R3L", "R4L-200", "R4L-50",
+            "R1S", "R2S", "R3S", "R4S-200", "R4S-50",
             "MA-Toleranz (Pts)",
             "Hammerdocht (%)",
 
@@ -138,37 +273,39 @@
             "Trade-Richtung",
             "CRV Long", "CRV Short",
             "Entry-Offset (Pts)", "SL-Offset (Pts)",
-            "SL Körper Long ?", "SL Körper Short ?",
-            "Kerzenteilung Long ?", "Kerzenteilung Short ?",
-            "Teilungsfaktor 1", "F2", "F3",
-            "Schwelle 1 (Pts)", "S2", "S3",
+            "SL an Kerzenkörper Long", "SL an Kerzenkörper Short",
+            "Kerzenteilung Long", "Kerzenteilung Short",
+            "Teilungsfaktor 1", "Teilungsfaktor 2", "Teilungsfaktor 3",
+            "Schwelle 1 (Pts)", "Schwelle 2 (Pts)", "Schwelle 3 (Pts)",
 
             // 03 - Session
             "Zeitzone (UTC)",
-            "Session-Fenster",
-            "Ausschlusszeiten Long", "Zeit Short",
-            "Ausschlusstage Long", "Tage Short",
+            "US-Zeitumstellung",
+            "Session-Zeiten",
+            "Freitag: letzte Kerze",
+            "Ausschlusszeiten Long", "Ausschlusszeiten Short",
+            "Ausschlusstage Long", "Ausschlusstage Short",
 
             // 04 - Kerzenform
-            "Kerze min (Pts)", "Kerze max (Pts)",
+            "Min. Kerzengröße (Pts)", "Max. Kerzengröße (Pts)",
             "Trend-Docht (%)", "Gegen-Docht (%)",
             "Körper min (%)", "Engulfing Growth (%)",
 
-            // 05 - MA-Mode (gleiche Bezeichnung in v3.1 und v4.0)
-            "Gleitender Durchschnitt MA-Mode",
+            // 05 - MA-Berechnung (alter Name per LABEL_ALIAS)
+            "MA-Berechnung",
 
-            // 06 - Blockfilter-Mode (Label identisch in v3.1 und v4.0)
-            "Blockfilter Long Mode",
-            "Blockfilter Short Mode",
+            // 06 - Blockfilter (alter Name per LABEL_ALIAS)
+            "Blockfilter Long",
+            "Blockfilter Short",
 
             // 07 - Indikatoren (Bezeichnungen identisch)
-            "RSI-Filter Long ?", "RSI-Filter Short ?", "RSI-Länge",
-            "RSI Long: min", "RSI Long: max",
-            "RSI Short: min", "RSI Short: max",
-            "MACD-Filter Long ?", "MACD-Filter Short ?",
-            "MACD-Fast", "MACD-Slow", "MACD-Signal",
-            "StochRSI-Filter Long ?", "StochRSI-Filter Short ?",
-            "SRSI Max (Long)", "SRSI Min (Short)",
+            "RSI-Filter Long", "RSI-Filter Short", "RSI Periode",
+            "RSI Long Min", "RSI Long Max",
+            "RSI Short Min", "RSI Short Max",
+            "MACD-Filter Long", "MACD-Filter Short",
+            "MACD Fast Periode", "MACD Slow Periode", "MACD Signal Periode",
+            "StochRSI Long", "StochRSI Short",
+            "StochRSI Max Long", "StochRSI Min Short",
         ];
 
         // Versionsspezifische Felder anhängen
@@ -191,26 +328,26 @@
                 // SL-Modus und ATR-SL v3.1
                 "SL Modus", "ATR-Periode", "ATR-Multiplikator",
                 // SL Nachziehen Trailing (v3.1 mit Pair-Strings)
-                "SL Nachziehen Long ?", "SL Nachziehen Short ?",
-                "1. Trigger (R)", "1. Schritt (R)",
-                "2. Trigger (R)", "2. Schritt (R)",
-                "3. Trigger (R)", "3. Schritt (R)",
-                "4. Trigger (R)", "4. Schritt (R)",
-                "5. Trigger (R)", "5. Schritt (R)",
-                "6. Trigger (R)", "6. Schritt (R)"
+                "Trailing-SL Long", "Trailing-SL Short",
+                "1. Trigger (R)", "1. SL-Level (R)",
+                "2. Trigger (R)", "2. SL-Level (R)",
+                "3. Trigger (R)", "3. SL-Level (R)",
+                "4. Trigger (R)", "4. SL-Level (R)",
+                "5. Trigger (R)", "5. SL-Level (R)",
+                "6. Trigger (R)", "6. SL-Level (R)"
             );
         } else {
             fieldsToExport.push(
                 // Trendfilter v4.0 (mit ?)
-                "Trendfilter Long ?", "Trendfilter Short ?",
+                "Trendfilter Long", "Trendfilter Short",
                 "MA Trend Long 1", "MA Trend Long 2", "MA Trend Long 3",
                 "MA Trend Short 1", "MA Trend Short 2", "MA Trend Short 3",
                 // Blockfilter-MAs v4.0
-                "MA Block Fast Long", "MA Block Slow Long",
-                "MA Block Fast Short", "MA Block Slow Short",
+                "Block-MA Fast Long", "Block-MA Slow Long",
+                "Block-MA Fast Short", "Block-MA Slow Short",
                 // ADX/ATR-Filter v4.0 (silent, weil im UI ausgeblendet)
-                "ADX-Filter Long ?", "ADX-Filter Short ?", "ADX Periode", "ADX Minimum",
-                "ATR-Filter Long ?", "ATR-Filter Short ?", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"
+                "ADX-Filter Long", "ADX-Filter Short", "ADX Periode", "ADX Minimum",
+                "ATR-Filter Long", "ATR-Filter Short", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"
             );
         }
 
@@ -232,9 +369,10 @@
 
         // Felder die still übersprungen werden (im UI ausgeblendet oder nur für cTrader-Export)
         const silentFields = [
-            "Gleitender Durchschnitt MA-Mode",
-            "ADX-Filter Long ?", "ADX-Filter Short ?", "ADX Periode", "ADX Minimum",
-            "ATR-Filter Long ?", "ATR-Filter Short ?", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"
+            "MA-Berechnung",
+            "Freitag: letzte Kerze",   // erst ab Strategie 4.1/5.1 – ältere Strategie: still überspringen
+            "ADX-Filter Long", "ADX-Filter Short", "ADX Periode", "ADX Minimum",
+            "ATR-Filter Long", "ATR-Filter Short", "ATR Periode", "ATR Min (Pts)", "ATR Max (Pts)"
         ];
 
         const missing = fieldsToExport.filter(f => settings[f] === undefined);
@@ -263,6 +401,7 @@
         if (!input) return false;
 
         if (input.type === "checkbox") {
+            if (typeof value !== "boolean") value = /^(true|oldman gold)$/i.test(String(value).trim()); // Strategie-Logik → altes Häkchen
             const currentValue = input.checked;
             if (currentValue !== value) {
                 const label = findLabelForControl(input, document);
@@ -337,6 +476,7 @@
 
     async function setComboboxValue(button, value) {
         if (!button || button.getAttribute('role') !== 'combobox') return false;
+        if (typeof value === "boolean") value = value ? "Oldman Gold" : "Oldman Standard"; // altes Häkchen „Oldman Gold … ?“ → Strategie-Logik
 
         const currentText = clean(button.innerText);
         const label = findLabelForControl(button, document);
@@ -390,7 +530,7 @@
         const dataStr = localStorage.getItem(STORAGE_KEY);
         if (!dataStr) {
             log("⚠ ERROR: No settings found in localStorage");
-            alert("Keine Strategie-Einstellungen gefunden!\nBitte zuerst im Oldman Strategietester 'Copy to Alarm' klicken.");
+            alert("Keine Strategie-Einstellungen gefunden!\nBitte zuerst in der Strategie (Oldman Strategie TiL) 'Copy to Alarm' klicken.");
             return 0;
         }
 
@@ -403,7 +543,7 @@
             const targetVer = detectTvVersion(currentTv);
             log(`Version check: saved=${savedVer}, target=${targetVer}`);
             if (savedVer !== targetVer) {
-                alert(`⚠ Versionskonflikt!\n\nDie kopierten Einstellungen stammen von Oldman Strategie v${savedVer}, du verwendest aber Oldman Alarm v${targetVer}.\n\nErlaubte Kombinationen:\n• Oldman Strategie v3.1 → Oldman Alarm v3.1\n• Oldman Strategie v4.0 → Oldman Alarm v4.0`);
+                alert(`⚠ Versionskonflikt!\n\nDie kopierten Einstellungen stammen von Strategie-Familie v${savedVer}, du verwendest aber Alarm-Familie v${targetVer}.\n\nErlaubte Kombinationen:\n• Strategie v3.1 → Alarm v3.1\n• Strategie v4.x/v5.x (Engulfing Setup Strategy) → Alarm v4.x (Engulfing Setup Alerts)`);
                 return 0;
             }
         }
@@ -469,8 +609,10 @@
         log(`✓ Import Complete: ${imported} successful, ${failed.length} failed`);
         logTable(`Alarm Import (TiL v${savedVer}) — Feldübersicht`, [...written, ...failed]);
 
-        if (imported > 0) {
-            alert(`✓ Import erfolgreich!\n\n${imported} Settings wurden übertragen.`);
+        if (imported > 0 || failed.length) {
+            alert(`${failed.length ? "⚠" : "✓"} Import ${imported > 0 ? "abgeschlossen" : "fehlgeschlagen"}!\n\n${imported} Settings wurden übertragen.` +
+                (failed.length ? `\n\n⚠ ${failed.length} Werte nicht übertragen:\n` +
+                    formatIssueList(failed.map(f => `${f.Feld} = ${f.Wert} (${f.Status.includes("GEFUNDEN") ? "Feld nicht gefunden" : "nicht übernommen"})`)) : ""));
         }
 
         return imported;
@@ -497,6 +639,12 @@
 
     function mapStrategyFromGoldFlag(flagChecked) {
         return flagChecked ? 1 : 0;
+    }
+
+    // Strategie-Logik aus TradingView: Auswahl „Oldman Gold“/„Oldman Standard“ (ab 4.1) oder altes Häkchen (true/false)
+    function mapStrategyFromTv(v) {
+        if (v === undefined || typeof v === "boolean") return mapStrategyFromGoldFlag(v === true);
+        return /standard/i.test(String(v)) ? 0 : 1;
     }
 
     // Dominant Engulfing Vergleich: Close = 0, Docht = 1 (Enum-Reihenfolge im Bot)
@@ -557,6 +705,53 @@
         return tv + ".cash";
     }
 
+    // ============================================================
+    //  CTRADER EXPORT - BROKER-AUSWAHL (seit 4.1)
+    //  Symbolnamen je Prop-Firm laut Trading-Grundlagen, Tabelle
+    //  "Gleicher Markt, verschiedene Kürzel" (Stand 08.10./11.10.2026).
+    //  Nicht gelistete Symbole: TradingView-Name ohne Anhängsel.
+    // ============================================================
+    const BROKER_KEY = 'oldman_ctrader_broker';
+    // freigegeben: false = bleibt im Code (Namensliste unten), erscheint aber nicht im Auswahlfeld.
+    // Zum Freischalten einfach auf true setzen.
+    const brokerList = [
+        { id: "FTMO",         label: "FTMO",            freigegeben: true  },
+        { id: "TTP",          label: "The Trading Pit", freigegeben: true  },
+        { id: "BrightFunded", label: "BrightFunded",    freigegeben: false },
+        { id: "FundingPips",  label: "FundingPips",     freigegeben: false },
+        { id: "E8",           label: "E8",              freigegeben: false },
+        { id: "Andere",       label: "Anderer Broker",  freigegeben: false }
+    ];
+    const tvIndexAlias = {
+        "NAS100": "US100", "SPX500": "US500", "DAX": "GER40", "DE40": "GER40"
+    };
+    const brokerSymbolMap = {
+        TTP:          { US30: "US30",      US100: "USTEC",      US500: "US500",      GER40: "DE40",       JP225: "JP225",       UK100: "UK100" },
+        BrightFunded: { US30: "US30.cash", US100: "US100.cash", US500: "US500.cash", GER40: "GER30.cash", JP225: "JAP225.cash", UK100: "UK100.cash" },
+        FundingPips:  { US30: "DJIUSD",    US100: "NDXUSD",     US500: "SPXUSD",     GER40: "GEREUR",     JP225: "JPNJPY",      UK100: "FTSEGBP" },
+        E8:           { US30: "DOW+",      US100: "NSDQ+",      US500: "SP+",        GER40: "DAX+",       JP225: "NIKKEI+" }
+    };
+
+    function getBroker() {
+        let id = "";
+        try { id = localStorage.getItem(BROKER_KEY) || ""; } catch (e) { return ""; }
+        // Gemerkter, aber (nicht mehr) freigegebener Broker zählt als "nicht gewählt"
+        return brokerList.some(b => b.id === id && b.freigegeben) ? id : "";
+    }
+    function setBroker(id) {
+        try { localStorage.setItem(BROKER_KEY, id); } catch (e) {}
+    }
+
+    function mapToBrokerSymbol(tvSymbolRaw, broker) {
+        if (broker === "FTMO") return mapToFtmoSymbol(tvSymbolRaw);
+        const tv = normalizeTvSymbol(tvSymbolRaw);
+        if (!tv) return null;
+        const canon = tvIndexAlias[tv] || tv;
+        const map = brokerSymbolMap[broker];
+        if (map && map[canon]) return map[canon];
+        return tv;
+    }
+
     function getTradingViewSymbol() {
         const btn = document.querySelector('#header-toolbar-symbol-search');
         if (!btn) return null;
@@ -609,7 +804,7 @@
                "h1";
     }
 
-    function buildChartSection(tv) {
+    function buildChartSection(tv, broker) {
         const tvSymbolRaw = getTradingViewSymbol();
         const fromUrl     = getPeriodFromUrl();
         const fromToolbar = getPeriodFromToolbar();
@@ -617,7 +812,7 @@
         const period = fromUrl ?? fromToolbar ?? fromFlags;
         log(`Period sources — URL: ${fromUrl}, Toolbar: ${fromToolbar}, Flags: ${fromFlags} → using: ${period}`);
         return {
-            Symbol: mapToFtmoSymbol(tvSymbolRaw),
+            Symbol: mapToBrokerSymbol(tvSymbolRaw, broker),
             Period: period
         };
     }
@@ -643,6 +838,7 @@
         if (ver) {
             if (ver.startsWith("v3")) return '3.1';
             if (ver.startsWith("v4")) return '4.0';
+            if (ver.startsWith("v5")) return '4.0'; // Test-Linie 5.x = gleicher Code wie 4.x (sonst griffe unten der 3.1-Fallback über „Trendfilter Long“)
         }
         // Fallback für v3.1 (kein Versions-Dropdown vorhanden)
         if (tv["Backtest auf dem M15 ?"] !== undefined) return '3.1'; // Strategietester v3.1
@@ -735,6 +931,7 @@
             Step6SLRShort: 5.0,
 
             // --- Session ---
+            UsDstShift: true,
             SessionWindowStr: "05:00-21:00",
             FridayNoEntryAfterStr: "",
             ExcludeLongStr: "",
@@ -839,32 +1036,32 @@
         const p = buildBaseParameters();
 
         // Strategy
-        p.StrategyLong = mapStrategyFromGoldFlag(bool(tv["Oldman Gold Long ?"]));
-        p.StrategyShort = mapStrategyFromGoldFlag(bool(tv["Oldman Gold Short ?"]));
+        p.StrategyLong = mapStrategyFromTv(tv["Strategie-Logik Long"]);
+        p.StrategyShort = mapStrategyFromTv(tv["Strategie-Logik Short"]);
 
         // Regeln
-        p.EnableRule1Long = bool(tv["Regel 1L"]);
-        p.EnableRule2Long = bool(tv["Regel 2L"]);
-        p.EnableRule3Long = bool(tv["Regel 3L"]);
-        p.EnableRule4MA200Long = bool(tv["Regel 4L (200)"]);  // ← v3.1
-        p.EnableRule4MA50Long  = bool(tv["Regel 4L (50)"]);   // ← v3.1
+        p.EnableRule1Long = bool(tv["R1L"]);
+        p.EnableRule2Long = bool(tv["R2L"]);
+        p.EnableRule3Long = bool(tv["R3L"]);
+        p.EnableRule4MA200Long = bool(tv["R4L-200"]);  // ← v3.1
+        p.EnableRule4MA50Long  = bool(tv["R4L-50"]);   // ← v3.1
 
-        p.EnableRule1Short = bool(tv["Regel 1S"]);
-        p.EnableRule2Short = bool(tv["Regel 2S"]);
-        p.EnableRule3Short = bool(tv["Regel 3S"]);
-        p.EnableRule4MA200Short = bool(tv["Regel 4S (200)"]); // ← v3.1
-        p.EnableRule4MA50Short  = bool(tv["Regel 4S (50)"]);  // ← v3.1
+        p.EnableRule1Short = bool(tv["R1S"]);
+        p.EnableRule2Short = bool(tv["R2S"]);
+        p.EnableRule3Short = bool(tv["R3S"]);
+        p.EnableRule4MA200Short = bool(tv["R4S-200"]); // ← v3.1
+        p.EnableRule4MA50Short  = bool(tv["R4S-50"]);  // ← v3.1
 
         // MA Toleranz
         {
-            const pairBuf = splitPair(tv["MA-Toleranz (Pts)"]);
+            const pairBuf = splitPair(tv["MA-Toleranz (Pts)"], "MA-Toleranz (Pts)");
             if (pairBuf.left  !== null) p.Rule4MABufferLong  = pairBuf.left;   // ← v3.1
             if (pairBuf.right !== null) p.Rule4MABufferShort = pairBuf.right;  // ← v3.1
         }
 
         // Hammerdocht (Pair-String "L/S")
         {
-            const pairHammer = splitPair(tv["Hammerdocht (%)"]);
+            const pairHammer = splitPair(tv["Hammerdocht (%)"], "Hammerdocht (%)");
             if (pairHammer.left  !== null) p.MaxShortWickPercentLong  = pairHammer.left;
             if (pairHammer.right !== null) p.MaxShortWickPercentShort = pairHammer.right;
         }
@@ -880,33 +1077,33 @@
 
         // Entry-Offset
         {
-            const pairEntry = splitPair(tv["Entry-Offset (Pts)"]);
+            const pairEntry = splitPair(tv["Entry-Offset (Pts)"], "Entry-Offset (Pts)");
             if (pairEntry.left  !== null) p.EntryOffsetLong  = pairEntry.left;
             if (pairEntry.right !== null) p.EntryOffsetShort = pairEntry.right;
         }
 
         // SL-Offset
         {
-            const pairSl = splitPair(tv["SL-Offset (Pts)"]);
+            const pairSl = splitPair(tv["SL-Offset (Pts)"], "SL-Offset (Pts)");
             if (pairSl.left  !== null) p.SLOffsetLong  = pairSl.left;
             if (pairSl.right !== null) p.SLOffsetShort = pairSl.right;
         }
 
         // Kerzenteilung = UseCandleSplit
-        p.UseCandleSplitLong  = bool(tv["Kerzenteilung Long ?"]);
-        p.UseCandleSplitShort = bool(tv["Kerzenteilung Short ?"]);
+        p.UseCandleSplitLong  = bool(tv["Kerzenteilung Long"]);
+        p.UseCandleSplitShort = bool(tv["Kerzenteilung Short"]);
 
-        p.SLUseBodyOpenLong  = bool(tv["SL Körper Long ?"]);
-        p.SLUseBodyOpenShort = bool(tv["SL Körper Short ?"]);
+        p.SLUseBodyOpenLong  = bool(tv["SL an Kerzenkörper Long"]);
+        p.SLUseBodyOpenShort = bool(tv["SL an Kerzenkörper Short"]);
 
         // Schwellen / Faktoren
         {
-            const s1 = splitPair(tv["Schwelle 1 (Pts)"]);
-            const s2 = splitPair(tv["S2"]);
-            const s3 = splitPair(tv["S3"]);
-            const f1 = splitPair(tv["Teilungsfaktor 1"]);
-            const f2 = splitPair(tv["F2"]);
-            const f3 = splitPair(tv["F3"]);
+            const s1 = splitPair(tv["Schwelle 1 (Pts)"], "Schwelle 1 (Pts)");
+            const s2 = splitPair(tv["Schwelle 2 (Pts)"], "Schwelle 2 (Pts)");
+            const s3 = splitPair(tv["Schwelle 3 (Pts)"], "Schwelle 3 (Pts)");
+            const f1 = splitPair(tv["Teilungsfaktor 1"], "Teilungsfaktor 1");
+            const f2 = splitPair(tv["Teilungsfaktor 2"], "Teilungsfaktor 2");
+            const f3 = splitPair(tv["Teilungsfaktor 3"], "Teilungsfaktor 3");
 
             if (s1.left  !== null) p.Threshold1Long  = s1.left;
             if (s1.right !== null) p.Threshold1Short = s1.right;
@@ -923,14 +1120,14 @@
         }
 
         // Trailing
-        p.TrailingEnabledLong  = bool(tv["SL Nachziehen Long ?"]);
-        p.TrailingEnabledShort = bool(tv["SL Nachziehen Short ?"]);
+        p.TrailingEnabledLong  = bool(tv["Trailing-SL Long"]);
+        p.TrailingEnabledShort = bool(tv["Trailing-SL Short"]);
 
         function mapStep(idx) {
             const trigLabel = `${idx}. Trigger (R)`;
-            const stepLabel = `${idx}. Schritt (R)`;
-            const trigPair = splitPair(tv[trigLabel]);
-            const stepPair = splitPair(tv[stepLabel]);
+            const stepLabel = `${idx}. SL-Level (R)`;
+            const trigPair = splitPair(tv[trigLabel], trigLabel);
+            const stepPair = splitPair(tv[stepLabel], stepLabel);
 
             if (trigPair.left  !== null) p[`Step${idx}TriggerRLong`]  = trigPair.left;
             if (trigPair.right !== null) p[`Step${idx}TriggerRShort`] = trigPair.right;
@@ -946,23 +1143,26 @@
         for (let i = 1; i <= maxStep; i++) mapStep(i);
 
         // Session
-        if (!tv["Session-Fenster"] || tv["Session-Fenster"].trim() === "") {
+        if (!tv["Session-Zeiten"] || tv["Session-Zeiten"].trim() === "") {
             p.SessionFilterEnabled = false;
             p.SessionWindowStr = "";
         } else {
             p.SessionFilterEnabled = true;
-            p.SessionWindowStr = tv["Session-Fenster"].trim();
+            p.SessionWindowStr = tv["Session-Zeiten"].trim();
         }
         if (tv["Ausschlusszeiten Long"]) p.ExcludeLongStr   = tv["Ausschlusszeiten Long"];
-        if (tv["Zeit Short"])            p.ExcludeShortStr  = tv["Zeit Short"];
+        if (tv["Ausschlusszeiten Short"])            p.ExcludeShortStr  = tv["Ausschlusszeiten Short"];
         if (tv["Ausschlusstage Long"])   p.ExcludeLongDays  = tv["Ausschlusstage Long"];
-        if (tv["Tage Short"])            p.ExcludeShortDays = tv["Tage Short"];
+        if (tv["Ausschlusstage Short"])            p.ExcludeShortDays = tv["Ausschlusstage Short"];
+        // US-Zeitumstellung (ab Bot 4.1/5.1, Strategie 4.1/5.1) – nur übertragen, wenn das Skript das Feld hat
+        if (tv["US-Zeitumstellung"] !== undefined) p.UsDstShift = bool(tv["US-Zeitumstellung"]);
 
         // Weekend Close
-        p.WeekendCloseEnabled = bool(tv["Trades vor Wochenende schließen?"]);
-        p.FridayNoEntryAfterStr = "";
+        p.WeekendCloseEnabled = bool(tv["Wochenende schließen"]);
+        // Freitag: letzte Kerze (ab Strategie 4.1/5.1) – gleiche Bedeutung wie im Bot (Startzeit der Signalkerze); ältere Skripte/Alarm ohne Feld → leer
+        p.FridayNoEntryAfterStr = tv["Freitag: letzte Kerze"] !== undefined ? String(tv["Freitag: letzte Kerze"]).replace(/\s/g, "") : "";
 
-        p.EveningCloseEnabled = bool(tv["Trades am Abend schließen?"]);
+        p.EveningCloseEnabled = bool(tv["Abend schließen"]);
 
         // Holiday Close
         if (tv["Feiertag-Region"]) {
@@ -982,12 +1182,12 @@
 
         // Candle Size / Wicks / Body / Engulfing
         {
-            const minC     = splitPair(tv["Kerze min (Pts)"]);
-            const maxC     = splitPair(tv["Kerze max (Pts)"]);
-            const trendW   = splitPair(tv["Trend-Docht (%)"]);
-            const counterW = splitPair(tv["Gegen-Docht (%)"]);
-            const bodyMin  = splitPair(tv["Körper min (%)"]);
-            const engulf   = splitPair(tv["Engulfing Growth (%)"]);
+            const minC     = splitPair(tv["Min. Kerzengröße (Pts)"], "Min. Kerzengröße (Pts)");
+            const maxC     = splitPair(tv["Max. Kerzengröße (Pts)"], "Max. Kerzengröße (Pts)");
+            const trendW   = splitPair(tv["Trend-Docht (%)"], "Trend-Docht (%)");
+            const counterW = splitPair(tv["Gegen-Docht (%)"], "Gegen-Docht (%)");
+            const bodyMin  = splitPair(tv["Körper min (%)"], "Körper min (%)");
+            const engulf   = splitPair(tv["Engulfing Growth (%)"], "Engulfing Growth (%)");
 
             if (minC.left     !== null) p.MinCandleLong                = minC.left;
             if (minC.right    !== null) p.MinCandleShort               = minC.right;
@@ -1004,15 +1204,15 @@
         }
 
         // Dominant Engulfing (nur Strategie v5.x hat die Felder; sonst bleibt es aus)
-        p.UseDominantEngulfingLong       = bool(tv["Dominant Engulfing Long ?"]);
-        p.UseDominantEngulfingShort      = bool(tv["Dominant Engulfing Short ?"]);
-        p.DominantEngulfingLookbackLong  = num(tv["DE Lookback L"], p.DominantEngulfingLookbackLong);
-        p.DominantEngulfingLookbackShort = num(tv["DE Lookback S"], p.DominantEngulfingLookbackShort);
-        p.DominantEngulfingSourceLong    = mapDomEngSource(tv["DE Vergleich L"]);
-        p.DominantEngulfingSourceShort   = mapDomEngSource(tv["DE Vergleich S"]);
+        p.UseDominantEngulfingLong       = bool(tv["Dominant Engulfing Long"]);
+        p.UseDominantEngulfingShort      = bool(tv["Dominant Engulfing Short"]);
+        p.DominantEngulfingLookbackLong  = num(tv["DE Lookback Long"], p.DominantEngulfingLookbackLong);
+        p.DominantEngulfingLookbackShort = num(tv["DE Lookback Short"], p.DominantEngulfingLookbackShort);
+        p.DominantEngulfingSourceLong    = mapDomEngSource(tv["DE Vergleich Long"]);
+        p.DominantEngulfingSourceShort   = mapDomEngSource(tv["DE Vergleich Short"]);
 
         // EMA/MA-Filter (Feldbezeichnungen unterscheiden sich zwischen TiL v3.1 und v4.0)
-        p.GlobalMAType = tv["Gleitender Durchschnitt MA-Mode"] === "SMA" ? 1 : 0;
+        p.GlobalMAType = tv["MA-Berechnung"] === "SMA" ? 1 : 0;
 
         if (tvVer === '3.1') {
             p.UseMAFilterL = bool(tv["Trendfilter Long"]);
@@ -1042,8 +1242,8 @@
             p.BlockMAFastS = num(tv["MA Fast Short"], p.BlockMAFastS);
             p.BlockMASlowS = num(tv["MA Slow Short"], p.BlockMASlowS);
         } else {
-            p.UseMAFilterL = bool(tv["Trendfilter Long ?"]);
-            p.UseMAFilterS = bool(tv["Trendfilter Short ?"]);
+            p.UseMAFilterL = bool(tv["Trendfilter Long"]);
+            p.UseMAFilterS = bool(tv["Trendfilter Short"]);
 
             p.MA1LenLong  = num(tv["MA Trend Long 1"],  p.MA1LenLong);
             p.MA2LenLong  = num(tv["MA Trend Long 2"],  p.MA2LenLong);
@@ -1053,10 +1253,10 @@
             p.MA3LenShort = num(tv["MA Trend Short 3"], p.MA3LenShort);
 
             // Blockfilter-MAs v4.0
-            p.BlockMAFastL = num(tv["MA Block Fast Long"],  p.BlockMAFastL);
-            p.BlockMASlowL = num(tv["MA Block Slow Long"],  p.BlockMASlowL);
-            p.BlockMAFastS = num(tv["MA Block Fast Short"], p.BlockMAFastS);
-            p.BlockMASlowS = num(tv["MA Block Slow Short"], p.BlockMASlowS);
+            p.BlockMAFastL = num(tv["Block-MA Fast Long"],  p.BlockMAFastL);
+            p.BlockMASlowL = num(tv["Block-MA Slow Long"],  p.BlockMASlowL);
+            p.BlockMAFastS = num(tv["Block-MA Fast Short"], p.BlockMAFastS);
+            p.BlockMASlowS = num(tv["Block-MA Slow Short"], p.BlockMASlowS);
         }
         if (tvVer === '3.1') {
             // v3.14 compat: alte MA Property-Namen spiegeln
@@ -1077,43 +1277,43 @@
         }
 
         // Blockfilter-Mode (Label identisch in v3.1 und v4.0)
-        p.BlockModeL   = mapBlockFilterMode(tv["Blockfilter Long Mode"]);
-        p.BlockModeS   = mapBlockFilterMode(tv["Blockfilter Short Mode"]);
+        p.BlockModeL   = mapBlockFilterMode(tv["Blockfilter Long"]);
+        p.BlockModeS   = mapBlockFilterMode(tv["Blockfilter Short"]);
 
         // RSI
-        p.UseRSIFilterL = bool(tv["RSI-Filter Long ?"]);
-        p.UseRSIFilterS = bool(tv["RSI-Filter Short ?"]);
-        p.RSILenFilter  = num(tv["RSI-Länge"], p.RSILenFilter);
+        p.UseRSIFilterL = bool(tv["RSI-Filter Long"]);
+        p.UseRSIFilterS = bool(tv["RSI-Filter Short"]);
+        p.RSILenFilter  = num(tv["RSI Periode"], p.RSILenFilter);
 
-        p.RSILongMin  = num(tv["RSI Long: min"],  p.RSILongMin);
-        p.RSILongMax  = num(tv["RSI Long: max"],  p.RSILongMax);
-        p.RSIShortMin = num(tv["RSI Short: min"], p.RSIShortMin);
-        p.RSIShortMax = num(tv["RSI Short: max"], p.RSIShortMax);
+        p.RSILongMin  = num(tv["RSI Long Min"],  p.RSILongMin);
+        p.RSILongMax  = num(tv["RSI Long Max"],  p.RSILongMax);
+        p.RSIShortMin = num(tv["RSI Short Min"], p.RSIShortMin);
+        p.RSIShortMax = num(tv["RSI Short Max"], p.RSIShortMax);
 
         // MACD
-        p.UseMACDFilterL = bool(tv["MACD-Filter Long ?"]);
-        p.UseMACDFilterS = bool(tv["MACD-Filter Short ?"]);
+        p.UseMACDFilterL = bool(tv["MACD-Filter Long"]);
+        p.UseMACDFilterS = bool(tv["MACD-Filter Short"]);
 
-        p.MACDFast   = num(tv["MACD-Fast"],   p.MACDFast);
-        p.MACDSlow   = num(tv["MACD-Slow"],   p.MACDSlow);
-        p.MACDSignal = num(tv["MACD-Signal"], p.MACDSignal);
+        p.MACDFast   = num(tv["MACD Fast Periode"],   p.MACDFast);
+        p.MACDSlow   = num(tv["MACD Slow Periode"],   p.MACDSlow);
+        p.MACDSignal = num(tv["MACD Signal Periode"], p.MACDSignal);
 
         // StochRSI
-        p.UseStochRSIFilterL = bool(tv["StochRSI-Filter Long ?"]);
-        p.UseStochRSIFilterS = bool(tv["StochRSI-Filter Short ?"]);
+        p.UseStochRSIFilterL = bool(tv["StochRSI Long"]);
+        p.UseStochRSIFilterS = bool(tv["StochRSI Short"]);
 
-        p.StochUpper = num(tv["SRSI Max (Long)"],  p.StochUpper);
-        p.StochLower = num(tv["SRSI Min (Short)"], p.StochLower);
+        p.StochUpper = num(tv["StochRSI Max Long"],  p.StochUpper);
+        p.StochLower = num(tv["StochRSI Min Short"], p.StochLower);
 
         // ADX
-        p.UseADXFilterL = bool(tv["ADX-Filter Long ?"]);
-        p.UseADXFilterS = bool(tv["ADX-Filter Short ?"]);
+        p.UseADXFilterL = bool(tv["ADX-Filter Long"]);
+        p.UseADXFilterS = bool(tv["ADX-Filter Short"]);
         p.ADXPeriod     = num(tv["ADX Periode"],  p.ADXPeriod);
         p.ADXMin        = num(tv["ADX Minimum"],  p.ADXMin);
 
         // ATR
-        p.UseATRFilterL = bool(tv["ATR-Filter Long ?"]);
-        p.UseATRFilterS = bool(tv["ATR-Filter Short ?"]);
+        p.UseATRFilterL = bool(tv["ATR-Filter Long"]);
+        p.UseATRFilterS = bool(tv["ATR-Filter Short"]);
         p.ATRPeriod     = num(tv["ATR Periode"],   p.ATRPeriod);
         p.ATRMinPips    = num(tv["ATR Min (Pts)"], p.ATRMinPips);
         p.ATRMaxPips    = num(tv["ATR Max (Pts)"], p.ATRMaxPips);
@@ -1129,6 +1329,12 @@
     // ============================================================
     function exportCTraderConfig(modal) {
         log("=== CTRADER EXPORT START ===");
+        const broker = getBroker();
+        if (!broker) {
+            alert("⚠ Bitte zuerst deinen Broker wählen!\n\nDie Auswahl steht direkt neben dem Knopf \"cT Export\".\nDanach erneut auf \"cT Export\" klicken.");
+            return;
+        }
+        const brokerLabel = (brokerList.find(b => b.id === broker) || {}).label || broker;
         try {
             const tv = extractSettings(modal);
             log(`Extracted ${Object.keys(tv).length} settings from strategy modal`);
@@ -1137,16 +1343,40 @@
             const targetBotVer = tvVer === '3.1' ? '3.14' : '4.0';
             log(`Detected TiL version: ${tvVer} → target cBot: v${targetBotVer}`);
 
-            const parameters = mapTvToConfig(tv);
+            // Mitschreiben, welche Felder die Zuordnung sucht, die es in diesem Skript nicht gibt
+            exportIssues = { missing: new Set(), unreadable: [] };
+            const isV4 = String(tv["Skript-Version"] || "").startsWith("v4");
+            const tvTracked = new Proxy(tv, {
+                get(t, k) {
+                    if (typeof k === "string" && !(k in t) && !EXPORT_OPTIONAL.includes(k) && !(isV4 && EXPORT_ONLY_V5.includes(k))) exportIssues.missing.add(k);
+                    return t[k];
+                }
+            });
+            let parameters;
+            try { parameters = mapTvToConfig(tvTracked); } finally { var issues = exportIssues; exportIssues = null; }
             log("Mapped TV settings to cTrader parameters");
+            if (issues.missing.size || issues.unreadable.length) log("Nicht übertragen:", [...issues.missing], issues.unreadable);
 
             logTable(`cT Export (TiL v${tvVer} → cBot v${targetBotVer}) — Gemappte Parameter`,
                 Object.entries(parameters).map(([k, v]) => ({ Parameter: k, Wert: String(v).substring(0, 60) })));
 
-            const chart = buildChartSection(tv);
-            log(`Chart section: Symbol=${chart.Symbol}, Period=${chart.Period}`);
+            const chart = buildChartSection(tv, broker);
+            log(`Chart section: Broker=${broker}, Symbol=${chart.Symbol}, Period=${chart.Period}`);
 
-            const cbotset = { Chart: chart, Parameters: parameters };
+            // Sicherung aller TradingView-Felder (seit 4.1) – cT Import stellt sie wieder her.
+            // Der Bot liest diesen Abschnitt nicht.
+            const allFields = extractAllSettings(modal);
+            log(`TradingView-Sicherung: ${Object.keys(allFields).length} Felder`);
+            const cbotset = {
+                Chart: chart,
+                Parameters: parameters,
+                TradingView: {
+                    Hinweis: "Sicherung aller TradingView-Felder fuer cT Import (Oldman TradingView Sync). Wird vom Bot nicht gelesen.",
+                    Strategie: tv["Skript-Version"] || `v${tvVer}`,
+                    Gesichert: new Date().toISOString(),
+                    Felder: allFields
+                }
+            };
 
             const jsonStr = JSON.stringify(cbotset, null, 2);
             const blob = new Blob([jsonStr], { type: "application/json" });
@@ -1157,7 +1387,8 @@
 
             const sym = cbotset.Chart.Symbol || "unknown";
             const per = cbotset.Chart.Period || "h1";
-            const filename = `Oldman Strategie v${targetBotVer}, ${sym} ${per}.cbotset`;
+            const brokerTag = broker === "Andere" ? "" : ` (${broker})`;
+            const filename = `Oldman Strategie v${targetBotVer}, ${sym} ${per}${brokerTag}.cbotset`;
             a.download = filename;
 
             log(`Downloading: ${filename}`);
@@ -1167,7 +1398,9 @@
             URL.revokeObjectURL(url);
 
             log("=== CTRADER EXPORT COMPLETE ===");
-            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für Oldman Trader v${targetBotVer}\n\n⚠ Bitte manuell in cTrader setzen:\n- WE-Endzeit (WeekendCloseTimeStr)\n- Abend-Endzeit (EveningCloseTimeStr)\n- Feiertag-Schließzeit (HolidayCloseTimeStr)\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)`);
+            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für Oldman Trader v${targetBotVer}\n💾 Zusätzlich gesichert: ${Object.keys(allFields).length} TradingView-Felder für cT Import (ohne Schließzeiten)\n🏦 Broker: ${brokerLabel} – Symbol in der Datei: ${sym}\n   Falsch? Broker neben \"cT Export\" ändern und neu exportieren.\n   Heißt das Symbol bei dir anders: Instanz auf dem richtigen Chart anlegen\n   und die Datei dort über \"Parameter laden\" einspielen.\n\n⚠ Bitte manuell in cTrader setzen:\n- Wochenende Schließzeit\n- Abend Schließzeit\n- US-Halbtage Schließzeit\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)` +
+                (issues.unreadable.length ? `\n\n⛔ Nicht übertragen – Wert nicht lesbar (Format 20 oder 20/30, Dezimalpunkt), Bot behält seinen Standard:\n${formatIssueList(issues.unreadable)}` : "") +
+                (issues.missing.size ? `\n\n⚠ Nicht übertragen – Feld in dieser Strategie nicht gefunden, Bot behält seinen Standard:\n${formatIssueList([...issues.missing])}` : ""));
         } catch (err) {
             log(`⛔ EXPORT FEHLER: ${err.message}`, err);
             alert(`⛔ cTrader Export fehlgeschlagen!\n\n${err.message}\n\nDetails in der Browser-Konsole (F12).`);
@@ -1190,7 +1423,7 @@
     }
 
     function reverseStrategyMode(val) {
-        return val === 1 ? true : false;
+        return val === 1 ? "Oldman Gold" : "Oldman Standard";
     }
 
     function reverseBlockFilterModeLong(val) {
@@ -1222,21 +1455,21 @@
         const tv = {};
 
         // Strategy
-        tv["Oldman Gold Long ?"]  = reverseStrategyMode(config.StrategyLong);
-        tv["Oldman Gold Short ?"] = reverseStrategyMode(config.StrategyShort);
+        tv["Strategie-Logik Long"]  = reverseStrategyMode(config.StrategyLong);
+        tv["Strategie-Logik Short"] = reverseStrategyMode(config.StrategyShort);
 
         // Regeln
-        tv["Regel 1L"]     = config.EnableRule1Long;
-        tv["Regel 2L"]     = config.EnableRule2Long;
-        tv["Regel 3L"]     = config.EnableRule3Long;
-        tv["Regel 4L (200)"] = config.EnableRule4MA200Long;   // ← v3.1
-        tv["Regel 4L (50)"]  = config.EnableRule4MA50Long;    // ← v3.1
+        tv["R1L"]     = config.EnableRule1Long;
+        tv["R2L"]     = config.EnableRule2Long;
+        tv["R3L"]     = config.EnableRule3Long;
+        tv["R4L-200"] = config.EnableRule4MA200Long;   // ← v3.1
+        tv["R4L-50"]  = config.EnableRule4MA50Long;    // ← v3.1
 
-        tv["Regel 1S"]     = config.EnableRule1Short;
-        tv["Regel 2S"]     = config.EnableRule2Short;
-        tv["Regel 3S"]     = config.EnableRule3Short;
-        tv["Regel 4S (200)"] = config.EnableRule4MA200Short;  // ← v3.1
-        tv["Regel 4S (50)"]  = config.EnableRule4MA50Short;   // ← v3.1
+        tv["R1S"]     = config.EnableRule1Short;
+        tv["R2S"]     = config.EnableRule2Short;
+        tv["R3S"]     = config.EnableRule3Short;
+        tv["R4S-200"] = config.EnableRule4MA200Short;  // ← v3.1
+        tv["R4S-50"]  = config.EnableRule4MA50Short;   // ← v3.1
 
         // MA Toleranz
         tv["MA-Toleranz (Pts)"] = makePair(config.Rule4MABufferLong, config.Rule4MABufferShort); // ← v3.1
@@ -1256,41 +1489,44 @@
         tv["SL-Offset (Pts)"]    = makePair(config.SLOffsetLong,    config.SLOffsetShort);
 
         // Kerzenteilung = UseCandleSplit
-        tv["Kerzenteilung Long ?"]  = config.UseCandleSplitLong;
-        tv["Kerzenteilung Short ?"] = config.UseCandleSplitShort;
+        tv["Kerzenteilung Long"]  = config.UseCandleSplitLong;
+        tv["Kerzenteilung Short"] = config.UseCandleSplitShort;
 
-        tv["SL Körper Long ?"]  = config.SLUseBodyOpenLong;
-        tv["SL Körper Short ?"] = config.SLUseBodyOpenShort;
+        tv["SL an Kerzenkörper Long"]  = config.SLUseBodyOpenLong;
+        tv["SL an Kerzenkörper Short"] = config.SLUseBodyOpenShort;
 
         // Schwellen / Faktoren
         tv["Schwelle 1 (Pts)"] = makePair(config.Threshold1Long, config.Threshold1Short);
-        tv["S2"]               = makePair(config.Threshold2Long, config.Threshold2Short);
-        tv["S3"]               = makePair(config.Threshold3Long, config.Threshold3Short);
+        tv["Schwelle 2 (Pts)"]               = makePair(config.Threshold2Long, config.Threshold2Short);
+        tv["Schwelle 3 (Pts)"]               = makePair(config.Threshold3Long, config.Threshold3Short);
         tv["Teilungsfaktor 1"] = makePair(config.FactorLowLong,  config.FactorLowShort);
-        tv["F2"]               = makePair(config.FactorMidLong,  config.FactorMidShort);
-        tv["F3"]               = makePair(config.FactorHighLong, config.FactorHighShort);
+        tv["Teilungsfaktor 2"]               = makePair(config.FactorMidLong,  config.FactorMidShort);
+        tv["Teilungsfaktor 3"]               = makePair(config.FactorHighLong, config.FactorHighShort);
 
         // Trailing
-        tv["SL Nachziehen Long ?"]  = config.TrailingEnabledLong;
-        tv["SL Nachziehen Short ?"] = config.TrailingEnabledShort;
+        tv["Trailing-SL Long"]  = config.TrailingEnabledLong;
+        tv["Trailing-SL Short"] = config.TrailingEnabledShort;
 
         const maxStep = tvVer === '3.1' ? 6 : 4;
         for (let i = 1; i <= maxStep; i++) {
             tv[`${i}. Trigger (R)`] = makePair(config[`Step${i}TriggerRLong`],  config[`Step${i}TriggerRShort`]);
-            tv[`${i}. Schritt (R)`] = makePair(config[`Step${i}SLRLong`],       config[`Step${i}SLRShort`]);
+            tv[`${i}. SL-Level (R)`] = makePair(config[`Step${i}SLRLong`],       config[`Step${i}SLRShort`]);
         }
 
         // Session
-        tv["Session-Fenster"]      = config.SessionWindowStr  || "";
+        tv["Session-Zeiten"]      = config.SessionWindowStr  || "";
         tv["Ausschlusszeiten Long"] = config.ExcludeLongStr   || "";
-        tv["Zeit Short"]            = config.ExcludeShortStr  || "";
+        tv["Ausschlusszeiten Short"]            = config.ExcludeShortStr  || "";
         tv["Ausschlusstage Long"]   = config.ExcludeLongDays  || "";
-        tv["Tage Short"]            = config.ExcludeShortDays || "";
+        tv["Ausschlusstage Short"]            = config.ExcludeShortDays || "";
+        if (config.UsDstShift !== undefined) tv["US-Zeitumstellung"] = config.UsDstShift;
+
+        tv["Freitag: letzte Kerze"] = config.FridayNoEntryAfterStr || "";
 
         // Weekend Close
-        tv["Trades vor Wochenende schließen?"] = config.WeekendCloseEnabled;
+        tv["Wochenende schließen"] = config.WeekendCloseEnabled;
 
-        tv["Trades am Abend schließen?"] = config.EveningCloseEnabled;
+        tv["Abend schließen"] = config.EveningCloseEnabled;
 
         // Holiday Close
         if (!config.HolidayCloseEnabled) {
@@ -1303,8 +1539,8 @@
         // Early-Close Zeit wird nicht importiert - reale Schließzeit muss manuell in TV gesetzt werden
 
         // Candle Size / Wicks / Body / Engulfing
-        tv["Kerze min (Pts)"]    = makePair(config.MinCandleLong,   config.MinCandleShort);
-        tv["Kerze max (Pts)"]    = makePair(config.MaxCandleLong,   config.MaxCandleShort);
+        tv["Min. Kerzengröße (Pts)"]    = makePair(config.MinCandleLong,   config.MinCandleShort);
+        tv["Max. Kerzengröße (Pts)"]    = makePair(config.MaxCandleLong,   config.MaxCandleShort);
         tv["Trend-Docht (%)"]   = makePair(config.WickPctLong,     config.WickPctShort);
         tv["Gegen-Docht (%)"]   = makePair(config.CounterWickPctLong, config.CounterWickPctShort);
         tv["Körper min (%)"]     = makePair(config.BodyMinPctLong,  config.BodyMinPctShort);
@@ -1312,18 +1548,18 @@
 
         // Dominant Engulfing – nur übertragen, wenn die Datei die Felder enthält
         if (config.UseDominantEngulfingLong !== undefined) {
-            tv["Dominant Engulfing Long ?"]  = config.UseDominantEngulfingLong;
-            tv["DE Lookback L"]              = config.DominantEngulfingLookbackLong ?? 4;
-            tv["DE Vergleich L"]             = reverseDomEngSource(config.DominantEngulfingSourceLong);
+            tv["Dominant Engulfing Long"]  = config.UseDominantEngulfingLong;
+            tv["DE Lookback Long"]              = config.DominantEngulfingLookbackLong ?? 4;
+            tv["DE Vergleich Long"]             = reverseDomEngSource(config.DominantEngulfingSourceLong);
         }
         if (config.UseDominantEngulfingShort !== undefined) {
-            tv["Dominant Engulfing Short ?"] = config.UseDominantEngulfingShort;
-            tv["DE Lookback S"]              = config.DominantEngulfingLookbackShort ?? 4;
-            tv["DE Vergleich S"]             = reverseDomEngSource(config.DominantEngulfingSourceShort);
+            tv["Dominant Engulfing Short"] = config.UseDominantEngulfingShort;
+            tv["DE Lookback Short"]              = config.DominantEngulfingLookbackShort ?? 4;
+            tv["DE Vergleich Short"]             = reverseDomEngSource(config.DominantEngulfingSourceShort);
         }
 
         // EMA/MA-Filter
-        tv["Gleitender Durchschnitt MA-Mode"] = config.GlobalMAType === 1 ? "SMA" : "EMA";
+        tv["MA-Berechnung"] = config.GlobalMAType === 1 ? "SMA" : "EMA";
 
         const botVer = detectVersion(config);
         log(`Detected cbotset version: ${botVer}, TiL version: ${tvVer}`);
@@ -1357,8 +1593,8 @@
             tv["MA Slow Short"] = String(config.BlockMASlowS);
         } else {
             // TiL v4.0
-            tv["Trendfilter Long ?"]  = config.UseMAFilterL;
-            tv["Trendfilter Short ?"] = config.UseMAFilterS;
+            tv["Trendfilter Long"]  = config.UseMAFilterL;
+            tv["Trendfilter Short"] = config.UseMAFilterS;
 
             if (botVer === '3.14') {
                 tv["MA Trend Long 1"]  = String(config.MA1Len  ?? 50);
@@ -1377,50 +1613,50 @@
             }
 
             // Blockfilter-MAs v4.0
-            tv["MA Block Fast Long"]  = String(config.BlockMAFastL);
-            tv["MA Block Slow Long"]  = String(config.BlockMASlowL);
-            tv["MA Block Fast Short"] = String(config.BlockMAFastS);
-            tv["MA Block Slow Short"] = String(config.BlockMASlowS);
+            tv["Block-MA Fast Long"]  = String(config.BlockMAFastL);
+            tv["Block-MA Slow Long"]  = String(config.BlockMASlowL);
+            tv["Block-MA Fast Short"] = String(config.BlockMAFastS);
+            tv["Block-MA Slow Short"] = String(config.BlockMASlowS);
         }
 
         // Blockfilter-Mode (Label identisch in v3.1 und v4.0)
-        tv["Blockfilter Long Mode"]  = reverseBlockFilterModeLong(config.BlockModeL);
-        tv["Blockfilter Short Mode"] = reverseBlockFilterModeShort(config.BlockModeS);
+        tv["Blockfilter Long"]  = reverseBlockFilterModeLong(config.BlockModeL);
+        tv["Blockfilter Short"] = reverseBlockFilterModeShort(config.BlockModeS);
 
         // RSI
-        tv["RSI-Filter Long ?"]  = config.UseRSIFilterL;
-        tv["RSI-Filter Short ?"] = config.UseRSIFilterS;
-        tv["RSI-Länge"]           = config.RSILenFilter;
+        tv["RSI-Filter Long"]  = config.UseRSIFilterL;
+        tv["RSI-Filter Short"] = config.UseRSIFilterS;
+        tv["RSI Periode"]           = config.RSILenFilter;
 
-        tv["RSI Long: min"]  = config.RSILongMin;
-        tv["RSI Long: max"]  = config.RSILongMax;
-        tv["RSI Short: min"] = config.RSIShortMin;
-        tv["RSI Short: max"] = config.RSIShortMax;
+        tv["RSI Long Min"]  = config.RSILongMin;
+        tv["RSI Long Max"]  = config.RSILongMax;
+        tv["RSI Short Min"] = config.RSIShortMin;
+        tv["RSI Short Max"] = config.RSIShortMax;
 
         // MACD
-        tv["MACD-Filter Long ?"]  = config.UseMACDFilterL;
-        tv["MACD-Filter Short ?"] = config.UseMACDFilterS;
+        tv["MACD-Filter Long"]  = config.UseMACDFilterL;
+        tv["MACD-Filter Short"] = config.UseMACDFilterS;
 
-        tv["MACD-Fast"]   = config.MACDFast;
-        tv["MACD-Slow"]   = config.MACDSlow;
-        tv["MACD-Signal"] = config.MACDSignal;
+        tv["MACD Fast Periode"]   = config.MACDFast;
+        tv["MACD Slow Periode"]   = config.MACDSlow;
+        tv["MACD Signal Periode"] = config.MACDSignal;
 
         // StochRSI
-        tv["StochRSI-Filter Long ?"]  = config.UseStochRSIFilterL;
-        tv["StochRSI-Filter Short ?"] = config.UseStochRSIFilterS;
+        tv["StochRSI Long"]  = config.UseStochRSIFilterL;
+        tv["StochRSI Short"] = config.UseStochRSIFilterS;
 
-        tv["SRSI Max (Long)"]  = config.StochUpper;
-        tv["SRSI Min (Short)"] = config.StochLower;
+        tv["StochRSI Max Long"]  = config.StochUpper;
+        tv["StochRSI Min Short"] = config.StochLower;
 
         // ADX
-        tv["ADX-Filter Long ?"]  = config.UseADXFilterL;
-        tv["ADX-Filter Short ?"] = config.UseADXFilterS;
+        tv["ADX-Filter Long"]  = config.UseADXFilterL;
+        tv["ADX-Filter Short"] = config.UseADXFilterS;
         tv["ADX Periode"]        = config.ADXPeriod;
         tv["ADX Minimum"]        = config.ADXMin;
 
         // ATR
-        tv["ATR-Filter Long ?"]  = config.UseATRFilterL;
-        tv["ATR-Filter Short ?"] = config.UseATRFilterS;
+        tv["ATR-Filter Long"]  = config.UseATRFilterL;
+        tv["ATR-Filter Short"] = config.UseATRFilterS;
         tv["ATR Periode"]        = config.ATRPeriod;
         tv["ATR Min (Pts)"]      = config.ATRMinPips;
         tv["ATR Max (Pts)"]      = config.ATRMaxPips;
@@ -1469,12 +1705,27 @@
                     log(`Detected cBot version in file: ${botVer}`);
                     const expectedBotVer = tvVer === '3.1' ? '3.14' : '4.0';
                     if (botVer !== expectedBotVer) {
-                        alert(`⚠ Versionskonflikt!\n\nDu verwendest Oldman Strategie v${tvVer}, aber die Datei stammt von Oldman Trader v${botVer}.\n\nErlaubte Kombinationen:\n• Oldman Strategie v3.1  →  Oldman Trader v3.14\n• Oldman Strategie v4.0  →  Oldman Trader v4.0\n\nBitte passende Datei laden.`);
+                        alert(`⚠ Versionskonflikt!\n\nDu verwendest Strategie-Familie v${tvVer}, aber die Datei stammt von Oldman Trader v${botVer}.\n\nErlaubte Kombinationen:\n• Strategie v3.1  →  Oldman Trader v3.14\n• Strategie v4.x/v5.x (Engulfing Setup Strategy)  →  Oldman Trader v4.x/v5.x\n\nBitte passende Datei laden.`);
                         resolve(0);
                         return;
                     }
 
                     const tvSettings = mapConfigToTv(cbotset.Parameters, tvVer);
+
+                    // Sicherung aller TradingView-Felder (seit 4.1): zuerst die Sicherung,
+                    // dann die Werte aus den cTrader-Parametern drüber – die haben Vorrang
+                    // (z. B. nach dem Optimierer oder einer Änderung in cTrader).
+                    const snap = cbotset.TradingView && cbotset.TradingView.Felder;
+                    const merged = {};
+                    if (snap && typeof snap === "object") {
+                        log(`TradingView-Sicherung gefunden: ${Object.keys(snap).length} Felder (Strategie ${cbotset.TradingView.Strategie || "?"}, gesichert ${cbotset.TradingView.Gesichert || "?"})`);
+                        for (const [key, value] of Object.entries(snap)) {
+                            if (key === "Skript-Version") continue;
+                            if (NEVER_TRANSFER.includes(key.replace(/ #\d+$/, ""))) continue;
+                            merged[normKey(key)] = value;
+                        }
+                    }
+                    Object.assign(merged, tvSettings);
 
                     let imported = 0;
                     let failed = [];
@@ -1485,8 +1736,12 @@
                     const comboEntries = [];
 
                     log("Searching for controls in modal...");
-                    for (const [label, value] of Object.entries(tvSettings)) {
-                        const control = findControlByLabel(modal, label);
+                    for (const [key, value] of Object.entries(merged)) {
+                        const m = key.match(/^(.*) #(\d+)$/);
+                        const fieldLabel = m ? m[1] : key;
+                        const nth = m ? parseInt(m[2], 10) : 1;
+                        const label = key;
+                        const control = findControlByLabel(modal, fieldLabel, nth);
 
                         if (!control) {
                             failed.push({ Feld: label, Status: '✗ NICHT GEFUNDEN', Wert: String(value).substring(0, 50) });
@@ -1550,7 +1805,18 @@
                     log(`✓ cTrader Import Complete: ${imported} successful, ${failed.length} failed`);
                     logTable(`cT Import (cBot v${botVer} → TiL v${tvVer}) — Feldübersicht`, [...written, ...failed]);
 
-                    alert(`✓ cTrader Import erfolgreich!\n\n${imported} Settings wurden übertragen.\n\n⚠ Bitte manuell in TradingView setzen:\n- WE-Endzeit\n- Abend-Endzeit\n- Early-Close Zeit\n→ Kerzenzeit des jeweiligen Timeframes!`);
+                    const notFound = failed.length;
+                    const failedText = notFound
+                        ? `\n\n⚠ ${notFound} Werte nicht übertragen (Feld fehlt in diesem Skript oder ließ sich nicht setzen):\n` +
+                          formatIssueList(failed.map(f => `${f.Feld} = ${f.Wert} (${f.Status.includes("GEFUNDEN") ? "Feld nicht gefunden" : "nicht übernommen"})`))
+                        : "";
+                    if (snap && typeof snap === "object") {
+                        alert(`✓ cTrader Import erfolgreich!\n\n${imported} Settings wurden übertragen – inklusive der TradingView-Sicherung aus der Datei (z. B. Backtest-Zeitraum, Anzeige).\nWerte aus cTrader haben Vorrang vor der Sicherung.` +
+                            failedText +
+                            `\n\n⚠ Bitte manuell in TradingView setzen:\n- Wochenende Schließzeit (Kerze)\n- Abend Schließzeit (Kerze)\n- US-Halbtage Schließzeit (Kerze)\n→ Kerzenzeit des jeweiligen Timeframes!`);
+                    } else {
+                        alert(`✓ cTrader Import erfolgreich!\n\n${imported} Settings wurden übertragen.\n(Datei ohne TradingView-Sicherung – mit älterem Userscript erstellt.)${failedText}\n\n⚠ Bitte manuell in TradingView setzen:\n- Wochenende Schließzeit (Kerze)\n- Abend Schließzeit (Kerze)\n- US-Halbtage Schließzeit (Kerze)\n→ Kerzenzeit des jeweiligen Timeframes!`);
+                    }
 
                     resolve(imported);
 
@@ -1606,7 +1872,7 @@
         const importBtn = makeBtn("cT Import",   "#FF9800", "#F57C00");
         copyBtn.addEventListener("click", () => {
             const count = exportStrategySettings(modal);
-            alert(`✓ Einstellungen kopiert!\n\nBitte öffne jetzt den "Oldman Alarm TiL" Indikator\nund klicke auf "Strategie einfügen".`);
+            alert(`✓ Einstellungen kopiert!\n\nBitte öffne jetzt den Indikator "Oldman Alarm TiL"\nund klicke auf "Strategie einfügen".`);
             setTimeout(() => { copyBtn.textContent = "Alarm"; copyBtn.style.background = "#2E7D32"; }, 2000);
         });
 
@@ -1614,7 +1880,29 @@
 
         importBtn.addEventListener("click", async () => { await importCTraderConfig(modal); });
 
+        // Broker-Auswahl für den cT Export (wird im Browser gemerkt)
+        const brokerSel = document.createElement("select");
+        brokerSel.title = "Für welchen Broker ist die cTrader-Datei? Davon hängt der Symbolname ab (z. B. US30.cash bei FTMO, US30 bei TTP).";
+        brokerSel.style.cssText = "padding:2px 4px;border-radius:4px;cursor:pointer;color:inherit;background:transparent;border:1px solid #2196F3;font:inherit;";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Broker wählen …";
+        brokerSel.appendChild(placeholder);
+        brokerList.filter(b => b.freigegeben).forEach(b => {
+            const opt = document.createElement("option");
+            opt.value = b.id;
+            opt.textContent = b.label;
+            opt.style.color = "#000";
+            brokerSel.appendChild(opt);
+        });
+        brokerSel.value = getBroker();
+        brokerSel.addEventListener("change", () => {
+            setBroker(brokerSel.value);
+            log(`Broker gewählt: ${brokerSel.value}`);
+        });
+
         container.appendChild(copyBtn);
+        container.appendChild(brokerSel);
         container.appendChild(exportBtn);
         container.appendChild(importBtn);
         actions.insertAdjacentElement("afterend", container);
@@ -1683,9 +1971,10 @@
     //  OBSERVER
     // ============================================================
     const observer = new MutationObserver(() => {
-        const strategyModal = document.querySelector('div[data-dialog-name="Oldman Strategie TiL"]');
+        // ^= „beginnt mit“: Skriptname darf die Version tragen, z. B. „Oldman Strategie TiL 5.1“ (seit 25.10.2026)
+        const strategyModal = document.querySelector('div[data-dialog-name^="Oldman Strategie TiL"], div[data-dialog-name^="Engulfing Setup Strategy"]');
         if (strategyModal) addButtonsToStrategy(strategyModal);
-        const alarmModal = document.querySelector('div[data-dialog-name="Oldman Alarm TiL"]');
+        const alarmModal = document.querySelector('div[data-dialog-name^="Oldman Alarm TiL"], div[data-dialog-name^="Engulfing Setup Alerts"]');
         if (alarmModal) addImportButtonToAlarm(alarmModal);
     });
 
