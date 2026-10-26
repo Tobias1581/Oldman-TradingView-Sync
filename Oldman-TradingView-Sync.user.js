@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.085
+// @version      4.086
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -1365,9 +1365,9 @@
 
     // ============================================================
     //  CTRADER EXPORT - MAIN FUNCTION
-    //  Beim Export werden Bot-Einstellungen aus einer gespeicherten
-    //  Basis-cbotset geladen (falls vorhanden), damit LicenseKey etc.
-    //  nicht verloren gehen.
+    //  Die Datei enthält nur die Strategie-Parameter. Bot-eigene Werte
+    //  (Lizenz, Konto, Risiko, Telegram …) fehlen bewusst: cTrader meldet sie
+    //  beim Laden als fehlend, nach „Weiter“ behält die Instanz ihre Werte.
     // ============================================================
     async function exportCTraderConfig(modal) {
         log("=== CTRADER EXPORT START ===");
@@ -1440,7 +1440,10 @@
             URL.revokeObjectURL(url);
 
             log("=== CTRADER EXPORT COMPLETE ===");
-            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für Oldman Trader v${targetBotVer}\n💾 Zusätzlich gesichert: ${Object.keys(allFields).length} TradingView-Felder für cT Import (ohne Schließzeiten)\n🏦 Broker: ${brokerLabel} – Symbol in der Datei: ${sym}\n   Falsch? Erneut \"cT Export\" klicken und anderen Broker wählen.\n   Heißt das Symbol bei dir anders: Instanz auf dem richtigen Chart anlegen\n   und die Datei dort über \"Parameter laden\" einspielen.\n\n⚠ Bitte manuell in cTrader setzen:\n- Wochenende Schließzeit\n- Abend Schließzeit\n- US-Halbtage Schließzeit\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)` +
+            alert(`✓ cTrader Export erfolgreich!\n\nDatei: ${filename}\n📌 Diese Datei ist für Oldman Trader v${targetBotVer}\n💾 Zusätzlich gesichert: ${Object.keys(allFields).length} TradingView-Felder für cT Import (ohne Schließzeiten)\n🏦 Broker: ${brokerLabel} – Symbol in der Datei: ${sym}\n   Falsch? Erneut \"cT Export\" klicken und anderen Broker wählen.\n   Heißt das Symbol bei dir anders: Instanz auf dem richtigen Chart anlegen\n   und die Datei dort über \"Parameter laden\" einspielen.\n\n⚠ Bitte manuell in cTrader setzen:\n- Wochenende Schließzeit\n- Abend Schließzeit\n- US-Halbtage Schließzeit\n→ Format HH:MM:SS, reale Schließzeit (nicht Kerzenzeit!)
+
+ℹ Beim Laden in cTrader erscheint „Parameterwarnung … enthält keine Werte“:
+   „Weiter“ klicken – Lizenz, Konto, Risiko, Telegram usw. bleiben wie in cTrader.` +
                 (issues.unreadable.length ? `\n\n⛔ Nicht übertragen – Wert nicht lesbar (Format 20 oder 20/30, Dezimalpunkt), Bot behält seinen Standard:\n${formatIssueList(issues.unreadable)}` : "") +
                 (issues.missing.size ? `\n\n⚠ Nicht übertragen – Feld in dieser Strategie nicht gefunden, Bot behält seinen Standard:\n${formatIssueList([...issues.missing])}` : ""));
         } catch (err) {
