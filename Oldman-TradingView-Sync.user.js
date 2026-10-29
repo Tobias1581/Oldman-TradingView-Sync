@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Oldman TradingView Sync & Export
-// @version      4.086
+// @version      4.087
 // @description  Alarm Sync + cTrader Export/Import
 // @author       Patrick Borger feat. Tobias Lorenz
 // @match        https://*.tradingview.com/*
@@ -474,14 +474,23 @@
         return false;
     }
 
+    // Auswahl-Einträge, die als gleich gelten: alte/neue Beschriftung (Strategie-Logik bis 28.10. „Oldman Gold/Standard“),
+    // „Ohne“ aus älteren Userscripts – TradingView zeigt „None“; bei Zahlenlisten zeigt TradingView die 0 als leere Zeile
+    const COMBO_SAME = [["None", "Ohne"], ["Gold", "Oldman Gold"], ["Standard", "Oldman Standard"], ["Aus", "0", ""]];
+    function comboMatches(text, value) {
+        if (text === value) return true;
+        return COMBO_SAME.some(g => g.includes(text) && g.includes(value));
+    }
+
     async function setComboboxValue(button, value) {
         if (!button || button.getAttribute('role') !== 'combobox') return false;
-        if (typeof value === "boolean") value = value ? "Oldman Gold" : "Oldman Standard"; // altes Häkchen „Oldman Gold … ?“ → Strategie-Logik
+        if (typeof value === "boolean") value = value ? "Gold" : "Standard"; // altes Häkchen „Oldman Gold … ?“ → Strategie-Logik
+        value = String(value);
 
         const currentText = clean(button.innerText);
         const label = findLabelForControl(button, document);
 
-        if (currentText === value) {
+        if (comboMatches(currentText, value)) {
             log(`Combobox "${label}" already has value "${value}"`);
             return true;
         }
@@ -496,7 +505,7 @@
         for (const option of options) {
             const optText = clean(option.innerText);
 
-            if (optText === value) {
+            if (comboMatches(optText, value)) {
                 option.click();
                 found = true;
                 log(`✓ Combobox "${label}" option "${value}" clicked (string match)`);
@@ -642,7 +651,7 @@
         return flagChecked ? 1 : 0;
     }
 
-    // Strategie-Logik aus TradingView: Auswahl „Oldman Gold“/„Oldman Standard“ (ab 4.1) oder altes Häkchen (true/false)
+    // Strategie-Logik aus TradingView: Auswahl „Gold“/„Standard“ (ab 29.10.2026; davor „Oldman Gold/Standard“) oder altes Häkchen (true/false)
     function mapStrategyFromTv(v) {
         if (v === undefined || typeof v === "boolean") return mapStrategyFromGoldFlag(v === true);
         return /standard/i.test(String(v)) ? 0 : 1;
@@ -1289,10 +1298,10 @@
 
             p.MA1LenLong  = num(tv["MA Trend Long 1"],  p.MA1LenLong);
             p.MA2LenLong  = num(tv["MA Trend Long 2"],  p.MA2LenLong);
-            p.MA3LenLong  = num(tv["MA Trend Long 3"],  p.MA3LenLong);
+            p.MA3LenLong  = mapMa3FromTv(tv["MA Trend Long 3"],  p.MA3LenLong);
             p.MA1LenShort = num(tv["MA Trend Short 1"], p.MA1LenShort);
             p.MA2LenShort = num(tv["MA Trend Short 2"], p.MA2LenShort);
-            p.MA3LenShort = num(tv["MA Trend Short 3"], p.MA3LenShort);
+            p.MA3LenShort = mapMa3FromTv(tv["MA Trend Short 3"], p.MA3LenShort);
 
             // Blockfilter-MAs v4.0
             p.BlockMAFastL = num(tv["Block-MA Fast Long"],  p.BlockMAFastL);
@@ -1468,19 +1477,28 @@
     }
 
     function reverseStrategyMode(val) {
-        return val === 1 ? "Oldman Gold" : "Oldman Standard";
+        return val === 1 ? "Gold" : "Standard";
     }
 
     function reverseBlockFilterModeLong(val) {
-        // TradingView translates Pine Script 'None' → 'Ohne' in the UI
-        const modes = ["Ohne", "Below Fast", "Below Slow", "Below Any", "Below Both", "Between Fast&Slow"];
-        return modes[val] ?? "Ohne";
+        // TradingView zeigt 'None' unübersetzt (bis 4.086 stand hier „Ohne“ → Import konnte den Blockfilter nie ausschalten)
+        const modes = ["None", "Below Fast", "Below Slow", "Below Any", "Below Both", "Between Fast&Slow"];
+        return modes[val] ?? "None";
     }
 
     function reverseBlockFilterModeShort(val) {
-        // TradingView translates Pine Script 'None' → 'Ohne' in the UI
-        const modes = ["Ohne", "Above Fast", "Above Slow", "Above Any", "Above Both", "Between Fast&Slow"];
-        return modes[val] ?? "Ohne";
+        const modes = ["None", "Above Fast", "Above Slow", "Above Any", "Above Both", "Between Fast&Slow"];
+        return modes[val] ?? "None";
+    }
+
+    // MA Trend 3: 0 = „Aus“ (Strategie ab 29.10.2026; ältere Skripte zeigen die 0 als leere Zeile – siehe COMBO_SAME)
+    function reverseMa3(val) {
+        return val ? String(val) : "Aus";
+    }
+    function mapMa3FromTv(v, d) {
+        if (v === undefined || v === null) return d;
+        const s = String(v).trim();
+        return (s === "" || /^aus$/i.test(s)) ? 0 : num(s, d);
     }
 
     // cbotset kann das Enum als Zahl (1) oder als Name ("Docht") enthalten
@@ -1644,17 +1662,17 @@
             if (botVer === '3.14') {
                 tv["MA Trend Long 1"]  = String(config.MA1Len  ?? 50);
                 tv["MA Trend Long 2"]  = String(config.MA2Len  ?? 200);
-                tv["MA Trend Long 3"]  = "0";
+                tv["MA Trend Long 3"]  = "Aus";
                 tv["MA Trend Short 1"] = String(config.MA3Len  ?? 200);
                 tv["MA Trend Short 2"] = String(config.MA4Len  ?? 50);
-                tv["MA Trend Short 3"] = "0";
+                tv["MA Trend Short 3"] = "Aus";
             } else {
                 tv["MA Trend Long 1"]  = String(config.MA1LenLong  ?? 50);
                 tv["MA Trend Long 2"]  = String(config.MA2LenLong  ?? 200);
-                tv["MA Trend Long 3"]  = String(config.MA3LenLong  ?? 0);
+                tv["MA Trend Long 3"]  = reverseMa3(config.MA3LenLong);
                 tv["MA Trend Short 1"] = String(config.MA1LenShort ?? 200);
                 tv["MA Trend Short 2"] = String(config.MA2LenShort ?? 50);
-                tv["MA Trend Short 3"] = String(config.MA3LenShort ?? 0);
+                tv["MA Trend Short 3"] = reverseMa3(config.MA3LenShort);
             }
 
             // Blockfilter-MAs v4.0
